@@ -337,16 +337,14 @@ pub const Renderer = struct {
 
     _ = vk.vkEnumerateDeviceExtensionProperties(device, null, &extension_count, available.ptr);
 
-    var has_swapchain = false;
-    var has_portability_subset = false;
-
     for (available) |ext| {
         const name = std.mem.span(@as([*:0]const u8, @ptrCast(&ext.extensionName[0])));
-        if (std.mem.eql(u8, name, "VK_KHR_swapchain")) has_swapchain = true;
-        if (std.mem.eql(u8, name, "VK_KHR_portability_subset")) has_portability_subset = true;
+        if (std.mem.eql(u8, name, "VK_KHR_swapchain")) {
+            return true;
+        }
     }
 
-    return has_swapchain and has_portability_subset;
+    return false;
 }
 
     fn find_queue_families(self: *Renderer, device: vk.VkPhysicalDevice) !QueueFamilyIndices {
