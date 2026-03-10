@@ -47,8 +47,9 @@ pub fn run() !void {
         print_accum += dt;
 
         camera.update(input, dt);
+        try renderer.draw_frame();
 
-        if (print_accum >= 0.5) {
+        if (print_accum >= 1.0) {
             print_accum = 0.0;
 
             const front = camera.front();
@@ -61,20 +62,15 @@ pub fn run() !void {
                 math.Vec3.dot(front, math.Vec3.normalize(to_target));
 
             std.log.info(
-                "cam pos=({d:.2}, {d:.2}, {d:.2}) target_dist={d:.2} facing={d:.2} swapchain={d} extent={d}x{d}",
+                "cam pos=({d:.2}, {d:.2}, {d:.2}) target_dist={d:.2} facing={d:.2}",
                 .{
                     camera.position.x,
                     camera.position.y,
                     camera.position.z,
                     distance,
                     facing,
-                    renderer.swapchain_images.len,
-                    renderer.swapchain_extent.width,
-                    renderer.swapchain_extent.height,
                 },
             );
         }
-
-        platform.delay_ms(1);
     }
 }
