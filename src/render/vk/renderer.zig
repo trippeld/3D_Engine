@@ -13,6 +13,15 @@ const Vertex = struct {
     color: [3]f32,
 };
 
+const Mesh = struct {
+    vertex_buffer: vk.VkBuffer = null,
+    vertex_buffer_memory: vk.VkDeviceMemory = null,
+
+    index_buffer: vk.VkBuffer = null,
+    index_buffer_memory: vk.VkDeviceMemory = null,
+    index_count: u32 = 0,
+};
+
 const cube_vertices = [_]Vertex{
     .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
     .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
@@ -75,12 +84,7 @@ pub const Renderer = struct {
     pipeline_layout: vk.VkPipelineLayout = null,
     graphics_pipeline: vk.VkPipeline = null,
 
-    vertex_buffer: vk.VkBuffer = null,
-    vertex_buffer_memory: vk.VkDeviceMemory = null,
-
-    index_buffer: vk.VkBuffer = null,
-    index_buffer_memory: vk.VkDeviceMemory = null,
-    index_count: u32 = 0,
+    mesh: Mesh = .{},
 
     depth_image: vk.VkImage = null,
     depth_image_memory: vk.VkDeviceMemory = null,
@@ -147,24 +151,24 @@ pub const Renderer = struct {
             self.depth_image_memory = null;
         }
 
-        if (self.index_buffer != null) {
-            vk.vkDestroyBuffer(self.device, self.index_buffer, null);
-            self.index_buffer = null;
+        if (self.mesh.index_buffer != null) {
+            vk.vkDestroyBuffer(self.device, self.mesh.index_buffer, null);
+            self.mesh.index_buffer = null;
         }
 
-        if (self.index_buffer_memory != null) {
-            vk.vkFreeMemory(self.device, self.index_buffer_memory, null);
-            self.index_buffer_memory = null;
+        if (self.mesh.index_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, self.mesh.index_buffer_memory, null);
+            self.mesh.index_buffer_memory = null;
         }
 
-        if (self.vertex_buffer != null) {
-            vk.vkDestroyBuffer(self.device, self.vertex_buffer, null);
-            self.vertex_buffer = null;
+        if (self.mesh.vertex_buffer != null) {
+            vk.vkDestroyBuffer(self.device, self.mesh.vertex_buffer, null);
+            self.mesh.vertex_buffer = null;
         }
 
-        if (self.vertex_buffer_memory != null) {
-            vk.vkFreeMemory(self.device, self.vertex_buffer_memory, null);
-            self.vertex_buffer_memory = null;
+        if (self.mesh.vertex_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, self.mesh.vertex_buffer_memory, null);
+            self.mesh.vertex_buffer_memory = null;
         }
 
         if (self.graphics_pipeline != null) {
@@ -763,7 +767,7 @@ pub const Renderer = struct {
     }
 
     fn create_vertex_buffer(self: *Renderer) !void {
-        const buffer_size = @sizeOf(Vertex) * cube_vertices.len;
+        const buffer_size: vk.VkDeviceSize = @sizeOf(Vertex) * cube_vertices.len;
 
         var staging_buffer: vk.VkBuffer = null;
         var staging_buffer_memory: vk.VkDeviceMemory = null;
@@ -772,13 +776,37 @@ pub const Renderer = struct {
             if (staging_buffer_memory != null) vk.vkFreeMemory(self.device, staging_buffer_memory, null);
         }
 
-        try self.create_buffer(
-            buffer_size,
-            vk.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        // Staging buffer: host visible
+        var staging_buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+        staging_buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        staging_buffer_info.size = buffer_size;
+        staging_buffer_info.usage = vk.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        staging_buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateBuffer(self.device, &staging_buffer_info, null, &staging_buffer) != vk.VK_SUCCESS) {
+            return error.VkCreateBufferFailed;
+        }
+
+        var staging_mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetBufferMemoryRequirements(self.device, staging_buffer, &staging_mem_requirements);
+
+        const staging_memory_type_index = try self.find_memory_type(
+            staging_mem_requirements.memoryTypeBits,
             vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &staging_buffer,
-            &staging_buffer_memory,
         );
+
+        var staging_alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        staging_alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        staging_alloc_info.allocationSize = staging_mem_requirements.size;
+        staging_alloc_info.memoryTypeIndex = staging_memory_type_index;
+
+        if (vk.vkAllocateMemory(self.device, &staging_alloc_info, null, &staging_buffer_memory) != vk.VK_SUCCESS) {
+            return error.VkAllocateMemoryFailed;
+        }
+
+        if (vk.vkBindBufferMemory(self.device, staging_buffer, staging_buffer_memory, 0) != vk.VK_SUCCESS) {
+            return error.VkBindBufferMemoryFailed;
+        }
 
         var mapped: ?*anyopaque = null;
         if (vk.vkMapMemory(self.device, staging_buffer_memory, 0, buffer_size, 0, &mapped) != vk.VK_SUCCESS) {
@@ -789,61 +817,81 @@ pub const Renderer = struct {
         const dst: [*]Vertex = @ptrCast(@alignCast(mapped.?));
         @memcpy(dst[0..cube_vertices.len], cube_vertices[0..]);
 
+        // Real GPU vertex buffer: device local
         try self.create_buffer(
             buffer_size,
             vk.VK_BUFFER_USAGE_TRANSFER_DST_BIT | vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &self.vertex_buffer,
-            &self.vertex_buffer_memory,
+            &self.mesh.vertex_buffer,
+            &self.mesh.vertex_buffer_memory,
         );
 
-        try self.copy_buffer(staging_buffer, self.vertex_buffer, buffer_size);
+        try self.copy_buffer(staging_buffer, self.mesh.vertex_buffer, buffer_size);
     }
 
     fn create_index_buffer(self: *Renderer) !void {
-        const buffer_size = @sizeOf(u32) * cube_indices.len;
+        const buffer_size: vk.VkDeviceSize = @sizeOf(u32) * cube_indices.len;
 
-        var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
-        buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buffer_info.size = buffer_size;
-        buffer_info.usage = vk.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+        var staging_buffer: vk.VkBuffer = null;
+        var staging_buffer_memory: vk.VkDeviceMemory = null;
+        defer {
+            if (staging_buffer != null) vk.vkDestroyBuffer(self.device, staging_buffer, null);
+            if (staging_buffer_memory != null) vk.vkFreeMemory(self.device, staging_buffer_memory, null);
+        }
 
-        if (vk.vkCreateBuffer(self.device, &buffer_info, null, &self.index_buffer) != vk.VK_SUCCESS) {
+        // Staging buffer: host visible
+        var staging_buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+        staging_buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        staging_buffer_info.size = buffer_size;
+        staging_buffer_info.usage = vk.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        staging_buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateBuffer(self.device, &staging_buffer_info, null, &staging_buffer) != vk.VK_SUCCESS) {
             return error.VkCreateBufferFailed;
         }
 
-        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
-        vk.vkGetBufferMemoryRequirements(self.device, self.index_buffer, &mem_requirements);
+        var staging_mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetBufferMemoryRequirements(self.device, staging_buffer, &staging_mem_requirements);
 
-        const memory_type_index = try self.find_memory_type(
-            mem_requirements.memoryTypeBits,
+        const staging_memory_type_index = try self.find_memory_type(
+            staging_mem_requirements.memoryTypeBits,
             vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         );
 
-        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
-        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc_info.allocationSize = mem_requirements.size;
-        alloc_info.memoryTypeIndex = memory_type_index;
+        var staging_alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        staging_alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        staging_alloc_info.allocationSize = staging_mem_requirements.size;
+        staging_alloc_info.memoryTypeIndex = staging_memory_type_index;
 
-        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &self.index_buffer_memory) != vk.VK_SUCCESS) {
+        if (vk.vkAllocateMemory(self.device, &staging_alloc_info, null, &staging_buffer_memory) != vk.VK_SUCCESS) {
             return error.VkAllocateMemoryFailed;
         }
 
-        if (vk.vkBindBufferMemory(self.device, self.index_buffer, self.index_buffer_memory, 0) != vk.VK_SUCCESS) {
+        if (vk.vkBindBufferMemory(self.device, staging_buffer, staging_buffer_memory, 0) != vk.VK_SUCCESS) {
             return error.VkBindBufferMemoryFailed;
         }
 
         var mapped: ?*anyopaque = null;
-        if (vk.vkMapMemory(self.device, self.index_buffer_memory, 0, buffer_size, 0, &mapped) != vk.VK_SUCCESS) {
+        if (vk.vkMapMemory(self.device, staging_buffer_memory, 0, buffer_size, 0, &mapped) != vk.VK_SUCCESS) {
             return error.VkMapMemoryFailed;
         }
-        defer vk.vkUnmapMemory(self.device, self.index_buffer_memory);
+        defer vk.vkUnmapMemory(self.device, staging_buffer_memory);
 
         const dst: [*]u32 = @ptrCast(@alignCast(mapped.?));
         @memcpy(dst[0..cube_indices.len], cube_indices[0..]);
 
-        self.index_count = @intCast(cube_indices.len);
+        // Real GPU index buffer: device local
+        try self.create_buffer(
+            buffer_size,
+            vk.VK_BUFFER_USAGE_TRANSFER_DST_BIT | vk.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            &self.mesh.index_buffer,
+            &self.mesh.index_buffer_memory,
+        );
+
+        try self.copy_buffer(staging_buffer, self.mesh.index_buffer, buffer_size);
+
+        self.mesh.index_count = @intCast(cube_indices.len);
     }
 
     fn create_graphics_pipeline(self: *Renderer) !void {
@@ -1167,7 +1215,7 @@ pub const Renderer = struct {
         scissor.extent = self.swapchain_extent;
         vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-        const vertex_buffers = [_]vk.VkBuffer{self.vertex_buffer};
+        const vertex_buffers = [_]vk.VkBuffer{self.mesh.vertex_buffer};
         const offsets = [_]vk.VkDeviceSize{0};
         vk.vkCmdBindVertexBuffers(
             command_buffer,
@@ -1179,7 +1227,7 @@ pub const Renderer = struct {
 
         vk.vkCmdBindIndexBuffer(
             command_buffer,
-            self.index_buffer,
+            self.mesh.index_buffer,
             0,
             vk.VK_INDEX_TYPE_UINT32,
         );
@@ -1199,7 +1247,7 @@ pub const Renderer = struct {
                 &push_constants,
             );
 
-            vk.vkCmdDrawIndexed(command_buffer, self.index_count, 1, 0, 0, 0);
+            vk.vkCmdDrawIndexed(command_buffer, self.mesh.index_count, 1, 0, 0, 0);
         }
 
         vk.vkCmdEndRendering(command_buffer);
@@ -1271,12 +1319,14 @@ pub const Renderer = struct {
         buffer_info.usage = usage;
         buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vk.vkCreateBuffer(self.device, &buffer_info, null, out_buffer) != vk.VK_SUCCESS) {
+        var buffer: vk.VkBuffer = null;
+        if (vk.vkCreateBuffer(self.device, &buffer_info, null, &buffer) != vk.VK_SUCCESS) {
             return error.VkCreateBufferFailed;
         }
+        errdefer vk.vkDestroyBuffer(self.device, buffer, null);
 
         var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
-        vk.vkGetBufferMemoryRequirements(self.device, out_buffer.*, &mem_requirements);
+        vk.vkGetBufferMemoryRequirements(self.device, buffer, &mem_requirements);
 
         const memory_type_index = try self.find_memory_type(
             mem_requirements.memoryTypeBits,
@@ -1288,13 +1338,18 @@ pub const Renderer = struct {
         alloc_info.allocationSize = mem_requirements.size;
         alloc_info.memoryTypeIndex = memory_type_index;
 
-        if (vk.vkAllocateMemory(self.device, &alloc_info, null, out_memory) != vk.VK_SUCCESS) {
+        var memory: vk.VkDeviceMemory = null;
+        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &memory) != vk.VK_SUCCESS) {
             return error.VkAllocateMemoryFailed;
         }
+        errdefer vk.vkFreeMemory(self.device, memory, null);
 
-        if (vk.vkBindBufferMemory(self.device, out_buffer.*, out_memory.*, 0) != vk.VK_SUCCESS) {
+        if (vk.vkBindBufferMemory(self.device, buffer, memory, 0) != vk.VK_SUCCESS) {
             return error.VkBindBufferMemoryFailed;
         }
+
+        out_buffer.* = buffer;
+        out_memory.* = memory;
     }
 
     fn copy_buffer(
