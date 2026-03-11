@@ -11,6 +11,11 @@ The majority of this document is the **development roadmap**, listing the compon
 ---
 
 # Roadmap
+---
+# Current Development Step
+
+Lighting & Shading → Vertex normals
+---
 
 ## Core Platform
 
