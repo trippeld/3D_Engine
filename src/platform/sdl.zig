@@ -24,6 +24,7 @@ pub const Event = union(enum) {
 pub const Timer = struct {
     last_counter: u64,
     perf_freq: f64,
+    elapsed_seconds: f32 = 0.0,
 
     pub fn start() Timer {
         return .{
@@ -38,7 +39,12 @@ pub const Timer = struct {
             (@as(f64, @floatFromInt(now - self.last_counter))) / self.perf_freq,
         );
         self.last_counter = now;
+        self.elapsed_seconds += dt;
         return dt;
+    }
+
+    pub fn total_time(self: *const Timer) f32 {
+        return self.elapsed_seconds;
     }
 };
 

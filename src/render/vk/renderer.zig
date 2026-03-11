@@ -5,7 +5,7 @@ const math = @import("../../core/math.zig");
 
 pub const FrameData = struct {
     view_proj: math.Mat4,
-    model: math.Mat4,
+    models: []const math.Mat4,
 };
 
 const Vertex = struct {
@@ -763,57 +763,41 @@ pub const Renderer = struct {
     }
 
     fn create_vertex_buffer(self: *Renderer) !void {
-        const buffer_size = @sizeOf(@TypeOf(cube_vertices));
+        const buffer_size = @sizeOf(Vertex) * cube_vertices.len;
 
-        var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
-        buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buffer_info.size = buffer_size;
-        buffer_info.usage = vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vk.vkCreateBuffer(self.device, &buffer_info, null, &self.vertex_buffer) != vk.VK_SUCCESS) {
-            return error.VkCreateBufferFailed;
+        var staging_buffer: vk.VkBuffer = null;
+        var staging_buffer_memory: vk.VkDeviceMemory = null;
+        defer {
+            if (staging_buffer != null) vk.vkDestroyBuffer(self.device, staging_buffer, null);
+            if (staging_buffer_memory != null) vk.vkFreeMemory(self.device, staging_buffer_memory, null);
         }
 
-        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
-        vk.vkGetBufferMemoryRequirements(self.device, self.vertex_buffer, &mem_requirements);
-
-        const memory_type_index = try self.find_memory_type(
-            mem_requirements.memoryTypeBits,
+        try self.create_buffer(
+            buffer_size,
+            vk.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            &staging_buffer,
+            &staging_buffer_memory,
         );
 
-        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
-        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc_info.allocationSize = mem_requirements.size;
-        alloc_info.memoryTypeIndex = memory_type_index;
-
-        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &self.vertex_buffer_memory) != vk.VK_SUCCESS) {
-            return error.VkAllocateMemoryFailed;
-        }
-
-        if (vk.vkBindBufferMemory(self.device, self.vertex_buffer, self.vertex_buffer_memory, 0) != vk.VK_SUCCESS) {
-            return error.VkBindBufferMemoryFailed;
-        }
-
         var mapped: ?*anyopaque = null;
-        if (vk.vkMapMemory(
-            self.device,
-            self.vertex_buffer_memory,
-            0,
-            buffer_size,
-            0,
-            &mapped,
-        ) != vk.VK_SUCCESS) {
+        if (vk.vkMapMemory(self.device, staging_buffer_memory, 0, buffer_size, 0, &mapped) != vk.VK_SUCCESS) {
             return error.VkMapMemoryFailed;
         }
-        defer vk.vkUnmapMemory(self.device, self.vertex_buffer_memory);
+        defer vk.vkUnmapMemory(self.device, staging_buffer_memory);
 
-        const dst: [*]u8 = @ptrCast(mapped.?);
-        const src: [*]const u8 = @ptrCast(&cube_vertices);
-        @memcpy(dst[0..buffer_size], src[0..buffer_size]);
+        const dst: [*]Vertex = @ptrCast(@alignCast(mapped.?));
+        @memcpy(dst[0..cube_vertices.len], cube_vertices[0..]);
 
-        std.log.info("Vertex buffer created for {d} cube vertices", .{cube_vertices.len});
+        try self.create_buffer(
+            buffer_size,
+            vk.VK_BUFFER_USAGE_TRANSFER_DST_BIT | vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            &self.vertex_buffer,
+            &self.vertex_buffer_memory,
+        );
+
+        try self.copy_buffer(staging_buffer, self.vertex_buffer, buffer_size);
     }
 
     fn create_index_buffer(self: *Renderer) !void {
@@ -1200,21 +1184,23 @@ pub const Renderer = struct {
             vk.VK_INDEX_TYPE_UINT32,
         );
 
-        const push_constants = PushConstants{
-            .view_proj = frame.view_proj.data,
-            .model = frame.model.data,
-        };
+        for (frame.models) |model| {
+            const push_constants = PushConstants{
+                .view_proj = frame.view_proj.data,
+                .model = model.data,
+            };
 
-        vk.vkCmdPushConstants(
-            command_buffer,
-            self.pipeline_layout,
-            vk.VK_SHADER_STAGE_VERTEX_BIT,
-            0,
-            @sizeOf(PushConstants),
-            &push_constants,
-        );
+            vk.vkCmdPushConstants(
+                command_buffer,
+                self.pipeline_layout,
+                vk.VK_SHADER_STAGE_VERTEX_BIT,
+                0,
+                @sizeOf(PushConstants),
+                &push_constants,
+            );
 
-        vk.vkCmdDrawIndexed(command_buffer, self.index_count, 1, 0, 0, 0);
+            vk.vkCmdDrawIndexed(command_buffer, self.index_count, 1, 0, 0, 0);
+        }
 
         vk.vkCmdEndRendering(command_buffer);
 
@@ -1269,6 +1255,97 @@ pub const Renderer = struct {
         }
 
         return error.NoSuitableMemoryType;
+    }
+
+    fn create_buffer(
+        self: *Renderer,
+        size: vk.VkDeviceSize,
+        usage: vk.VkBufferUsageFlags,
+        memory_properties: vk.VkMemoryPropertyFlags,
+        out_buffer: *vk.VkBuffer,
+        out_memory: *vk.VkDeviceMemory,
+    ) !void {
+        var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+        buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = size;
+        buffer_info.usage = usage;
+        buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateBuffer(self.device, &buffer_info, null, out_buffer) != vk.VK_SUCCESS) {
+            return error.VkCreateBufferFailed;
+        }
+
+        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetBufferMemoryRequirements(self.device, out_buffer.*, &mem_requirements);
+
+        const memory_type_index = try self.find_memory_type(
+            mem_requirements.memoryTypeBits,
+            memory_properties,
+        );
+
+        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = memory_type_index;
+
+        if (vk.vkAllocateMemory(self.device, &alloc_info, null, out_memory) != vk.VK_SUCCESS) {
+            return error.VkAllocateMemoryFailed;
+        }
+
+        if (vk.vkBindBufferMemory(self.device, out_buffer.*, out_memory.*, 0) != vk.VK_SUCCESS) {
+            return error.VkBindBufferMemoryFailed;
+        }
+    }
+
+    fn copy_buffer(
+        self: *Renderer,
+        src_buffer: vk.VkBuffer,
+        dst_buffer: vk.VkBuffer,
+        size: vk.VkDeviceSize,
+    ) !void {
+        var alloc_info = std.mem.zeroes(vk.VkCommandBufferAllocateInfo);
+        alloc_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level = vk.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool = self.command_pool;
+        alloc_info.commandBufferCount = 1;
+
+        var command_buffer: vk.VkCommandBuffer = null;
+        if (vk.vkAllocateCommandBuffers(self.device, &alloc_info, &command_buffer) != vk.VK_SUCCESS) {
+            return error.VkAllocateCommandBuffersFailed;
+        }
+        defer vk.vkFreeCommandBuffers(self.device, self.command_pool, 1, &command_buffer);
+
+        var begin_info = std.mem.zeroes(vk.VkCommandBufferBeginInfo);
+        begin_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = vk.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        if (vk.vkBeginCommandBuffer(command_buffer, &begin_info) != vk.VK_SUCCESS) {
+            return error.VkBeginCommandBufferFailed;
+        }
+
+        var copy_region = std.mem.zeroes(vk.VkBufferCopy);
+        copy_region.srcOffset = 0;
+        copy_region.dstOffset = 0;
+        copy_region.size = size;
+
+        vk.vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+
+        if (vk.vkEndCommandBuffer(command_buffer) != vk.VK_SUCCESS) {
+            return error.VkEndCommandBufferFailed;
+        }
+
+        var submit_info = std.mem.zeroes(vk.VkSubmitInfo);
+        submit_info.sType = vk.VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &command_buffer;
+
+        if (vk.vkQueueSubmit(self.graphics_queue, 1, &submit_info, null) != vk.VK_SUCCESS) {
+            return error.VkQueueSubmitFailed;
+        }
+
+        if (vk.vkQueueWaitIdle(self.graphics_queue) != vk.VK_SUCCESS) {
+            return error.VkQueueWaitIdleFailed;
+        }
     }
 
     fn check_device_extension_support(self: *Renderer, device: vk.VkPhysicalDevice) !bool {

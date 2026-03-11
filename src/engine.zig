@@ -66,14 +66,23 @@ pub fn run() !void {
         const view = camera.view_matrix();
         const view_proj = math.Mat4.mul(proj, view);
 
-        const model = math.Mat4.mul(
-            math.Mat4.translate(math.Vec3.init(0.0, 0.0, -3.0)),
-            math.Mat4.rotate_y(total_time),
-        );
+        const time = timer.total_time();
+
+        const left_translation = math.Mat4.translate(math.Vec3.init(-2.0, 0.0, -5.0));
+        const center_translation = math.Mat4.translate(math.Vec3.init(0.0, 0.0, -3.0));
+        const right_translation = math.Mat4.translate(math.Vec3.init(2.0, 0.0, -5.0));
+
+        const rotation = math.Mat4.rotate_y(time);
+
+        const models = [_]math.Mat4{
+            math.Mat4.mul(left_translation, rotation),
+            math.Mat4.mul(center_translation, rotation),
+            math.Mat4.mul(right_translation, rotation),
+        };
 
         try renderer.draw_frame(.{
             .view_proj = view_proj,
-            .model = model,
+            .models = models[0..],
         });
 
         if (print_accum >= 1.0) {
