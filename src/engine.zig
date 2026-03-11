@@ -28,6 +28,8 @@ pub fn run() !void {
     var timer = platform.Timer.start();
     var print_accum: f32 = 0.0;
 
+    var total_time: f32 = 0.0;
+
     while (running) {
         while (platform.poll_event()) |event| {
             switch (event) {
@@ -44,10 +46,35 @@ pub fn run() !void {
 
         const input = platform.read_input_state();
         const dt = timer.tick();
+        total_time += dt;
         print_accum += dt;
 
         camera.update(input, dt);
-        try renderer.draw_frame();
+        const aspect = @as(f32, @floatFromInt(renderer.swapchain_extent.width)) /
+            @as(f32, @floatFromInt(renderer.swapchain_extent.height));
+
+        var proj = math.Mat4.perspective(
+            std.math.degreesToRadians(75.0),
+            aspect,
+            0.1,
+            200.0,
+        );
+
+        // Vulkan clip-space has inverted Y compared to the usual GL-style projection.
+        proj.data[5] *= -1.0;
+
+        const view = camera.view_matrix();
+        const view_proj = math.Mat4.mul(proj, view);
+
+        const model = math.Mat4.mul(
+            math.Mat4.translate(math.Vec3.init(0.0, 0.0, -3.0)),
+            math.Mat4.rotate_y(total_time),
+        );
+
+        try renderer.draw_frame(.{
+            .view_proj = view_proj,
+            .model = model,
+        });
 
         if (print_accum >= 1.0) {
             print_accum = 0.0;

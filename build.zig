@@ -19,6 +19,23 @@ pub fn build(b: *std.Build) void {
         .root_module = root_module,
     });
 
+    const compile_triangle_vert = b.addSystemCommand(&.{
+        "glslc",
+        "src/render/vk/shaders/triangle.vert",
+        "-o",
+        "src/render/vk/shaders/triangle.vert.spv",
+    });
+
+    const compile_triangle_frag = b.addSystemCommand(&.{
+        "glslc",
+        "src/render/vk/shaders/triangle.frag",
+        "-o",
+        "src/render/vk/shaders/triangle.frag.spv",
+    });
+
+    exe.step.dependOn(&compile_triangle_vert.step);
+    exe.step.dependOn(&compile_triangle_frag.step);
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

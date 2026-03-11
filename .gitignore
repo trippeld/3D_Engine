@@ -1,35 +1,5 @@
 # Zig build artifacts
-zig-cache/
-zig-out/
 .zig-cache/
-
-# Build outputs
-build/
-dist/
-
-# Object files
-*.o
-*.obj
-
-# Libraries
-*.so
-*.a
-*.dll
-*.dylib
-
-# Executables
-*.exe
-*.out
-
-# Temporary files
-*.tmp
-*.log
-
-# Editor files
-*.swp
-*.swo
-*~
 
 # OS files
 .DS_Store
-Thumbs.db

@@ -34,6 +34,14 @@ pub const Camera = struct {
         self.pitch_deg = std.math.clamp(self.pitch_deg, -89.0, 89.0);
     }
 
+    pub fn view_matrix(self: *const Camera) math.Mat4 {
+        const eye = self.position;
+        const center = math.Vec3.add(self.position, self.front());
+        const up = math.Vec3.init(0.0, 1.0, 0.0);
+
+        return math.Mat4.look_at(eye, center, up);
+    }
+
     pub fn update(self: *Camera, state: input.State, dt: f32) void {
         const amount = self.move_speed * dt;
 

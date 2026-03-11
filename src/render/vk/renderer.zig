@@ -1,9 +1,85 @@
 const std = @import("std");
 const sdl = @import("../../platform/sdl.zig");
 const vk = sdl.c;
+const math = @import("../../core/math.zig");
+
+pub const FrameData = struct {
+    view_proj: math.Mat4,
+    model: math.Mat4,
+};
+
+const Vertex = struct {
+    pos: [3]f32,
+    color: [3]f32,
+};
+
+const cube_vertices = [_]Vertex{
+    // front
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+
+    // back
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
+
+    // left
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
+
+    // right
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
+
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+
+    // top
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
+
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+
+    // bottom
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
+
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+};
+
+const PushConstants = struct {
+    view_proj: [16]f32,
+    model: [16]f32,
+};
+
+const triangle_vert_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.vert.spv").*;
+const triangle_frag_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.frag.spv").*;
 
 pub const Renderer = struct {
     allocator: std.mem.Allocator,
+    window: *sdl.Window,
 
     instance: vk.VkInstance = null,
     surface: vk.VkSurfaceKHR = null,
@@ -20,6 +96,7 @@ pub const Renderer = struct {
     swapchain: vk.VkSwapchainKHR = null,
     swapchain_images: []vk.VkImage = &.{},
     swapchain_image_views: []vk.VkImageView = &.{},
+    swapchain_image_initialized: []bool = &.{},
     swapchain_format: vk.VkFormat = vk.VK_FORMAT_UNDEFINED,
     swapchain_extent: vk.VkExtent2D = .{ .width = 0, .height = 0 },
 
@@ -30,9 +107,20 @@ pub const Renderer = struct {
     render_finished_semaphore: vk.VkSemaphore = null,
     in_flight_fence: vk.VkFence = null,
 
+    pipeline_layout: vk.VkPipelineLayout = null,
+    graphics_pipeline: vk.VkPipeline = null,
+
+    vertex_buffer: vk.VkBuffer = null,
+    vertex_buffer_memory: vk.VkDeviceMemory = null,
+
+    depth_image: vk.VkImage = null,
+    depth_image_memory: vk.VkDeviceMemory = null,
+    depth_image_view: vk.VkImageView = null,
+
     pub fn init(allocator: std.mem.Allocator, window: *sdl.Window) !Renderer {
         var self = Renderer{
             .allocator = allocator,
+            .window = window,
         };
 
         try self.create_instance();
@@ -43,9 +131,12 @@ pub const Renderer = struct {
         try self.create_logical_device();
         try self.create_swapchain(window);
         try self.create_image_views();
+        try self.create_depth_resources();
         try self.create_command_pool();
         try self.create_command_buffers();
         try self.create_sync_objects();
+        try self.create_vertex_buffer();
+        try self.create_graphics_pipeline();
 
         std.log.info("Vulkan renderer clear-screen bootstrap completed", .{});
         return self;
@@ -71,10 +162,42 @@ pub const Renderer = struct {
             self.image_available_semaphore = null;
         }
 
-        if (self.command_buffers.len != 0) {
-            self.allocator.free(self.command_buffers);
-            self.command_buffers = &.{};
+        if (self.depth_image_view != null) {
+            vk.vkDestroyImageView(self.device, self.depth_image_view, null);
+            self.depth_image_view = null;
         }
+
+        if (self.depth_image != null) {
+            vk.vkDestroyImage(self.device, self.depth_image, null);
+            self.depth_image = null;
+        }
+
+        if (self.depth_image_memory != null) {
+            vk.vkFreeMemory(self.device, self.depth_image_memory, null);
+            self.depth_image_memory = null;
+        }
+
+        if (self.vertex_buffer != null) {
+            vk.vkDestroyBuffer(self.device, self.vertex_buffer, null);
+            self.vertex_buffer = null;
+        }
+
+        if (self.vertex_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, self.vertex_buffer_memory, null);
+            self.vertex_buffer_memory = null;
+        }
+
+        if (self.graphics_pipeline != null) {
+            vk.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
+            self.graphics_pipeline = null;
+        }
+
+        if (self.pipeline_layout != null) {
+            vk.vkDestroyPipelineLayout(self.device, self.pipeline_layout, null);
+            self.pipeline_layout = null;
+        }
+
+        self.destroy_command_buffers();
 
         if (self.command_pool != null) {
             vk.vkDestroyCommandPool(self.device, self.command_pool, null);
@@ -99,7 +222,7 @@ pub const Renderer = struct {
         }
     }
 
-    pub fn draw_frame(self: *Renderer) !void {
+    pub fn draw_frame(self: *Renderer, frame: FrameData) !void {
         _ = vk.vkWaitForFences(
             self.device,
             1,
@@ -120,9 +243,10 @@ pub const Renderer = struct {
         );
 
         if (acquire_result == vk.VK_ERROR_OUT_OF_DATE_KHR) {
-            std.log.warn("Swapchain out of date; resize recreation comes next step", .{});
+            try self.recreate_swapchain();
             return;
         }
+
         if (acquire_result != vk.VK_SUCCESS and acquire_result != vk.VK_SUBOPTIMAL_KHR) {
             std.log.err("vkAcquireNextImageKHR failed with VkResult={d}", .{acquire_result});
             return error.VkAcquireNextImageFailed;
@@ -131,7 +255,7 @@ pub const Renderer = struct {
         const command_buffer = self.command_buffers[image_index];
         _ = vk.vkResetCommandBuffer(command_buffer, 0);
 
-        try self.record_command_buffer(command_buffer, image_index);
+        try self.record_command_buffer(command_buffer, image_index, frame);
 
         var wait_stage = [_]vk.VkPipelineStageFlags{
             vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -168,7 +292,7 @@ pub const Renderer = struct {
 
         const present_result = vk.vkQueuePresentKHR(self.present_queue, &present_info);
         if (present_result == vk.VK_ERROR_OUT_OF_DATE_KHR or present_result == vk.VK_SUBOPTIMAL_KHR) {
-            std.log.warn("Swapchain presentation out of date/suboptimal; resize recreation comes next step", .{});
+            try self.recreate_swapchain();
             return;
         }
         if (present_result != vk.VK_SUCCESS) {
@@ -177,13 +301,80 @@ pub const Renderer = struct {
         }
     }
 
+    fn destroy_command_buffers(self: *Renderer) void {
+        if (self.command_buffers.len != 0) {
+            vk.vkFreeCommandBuffers(
+                self.device,
+                self.command_pool,
+                @intCast(self.command_buffers.len),
+                self.command_buffers.ptr,
+            );
+            self.allocator.free(self.command_buffers);
+            self.command_buffers = &.{};
+        }
+    }
+
+    fn recreate_swapchain(self: *Renderer) !void {
+        try self.wait_for_nonzero_window_size();
+
+        _ = vk.vkDeviceWaitIdle(self.device);
+
+        self.destroy_command_buffers();
+        self.destroy_swapchain();
+
+        try self.create_swapchain(self.window);
+        try self.create_image_views();
+        try self.create_depth_resources();
+        try self.create_command_buffers();
+
+        std.log.info(
+            "Swapchain recreated: extent {d}x{d}, images {d}",
+            .{ self.swapchain_extent.width, self.swapchain_extent.height, self.swapchain_images.len },
+        );
+    }
+
+    fn wait_for_nonzero_window_size(self: *Renderer) !void {
+        while (true) {
+            var width: c_int = 0;
+            var height: c_int = 0;
+
+            if (!vk.SDL_GetWindowSizeInPixels(self.window, &width, &height)) {
+                return error.GetWindowSizeFailed;
+            }
+
+            if (width > 0 and height > 0) return;
+
+            sdl.delay_ms(16);
+        }
+    }
+
     fn destroy_swapchain(self: *Renderer) void {
+        if (self.depth_image_view != null) {
+            vk.vkDestroyImageView(self.device, self.depth_image_view, null);
+            self.depth_image_view = null;
+        }
+
+        if (self.depth_image != null) {
+            vk.vkDestroyImage(self.device, self.depth_image, null);
+            self.depth_image = null;
+        }
+
+        if (self.depth_image_memory != null) {
+            vk.vkFreeMemory(self.device, self.depth_image_memory, null);
+            self.depth_image_memory = null;
+        }
+
         for (self.swapchain_image_views) |view| {
             vk.vkDestroyImageView(self.device, view, null);
         }
         if (self.swapchain_image_views.len != 0) {
             self.allocator.free(self.swapchain_image_views);
             self.swapchain_image_views = &.{};
+        }
+
+        if (self.swapchain_image_initialized.len != 0) {
+            self.allocator.free(self.swapchain_image_initialized);
+            self.swapchain_image_initialized = &.{};
         }
 
         if (self.swapchain_images.len != 0) {
@@ -435,6 +626,9 @@ pub const Renderer = struct {
         self.swapchain_images = try self.allocator.alloc(vk.VkImage, actual_image_count);
         _ = vk.vkGetSwapchainImagesKHR(self.device, self.swapchain, &actual_image_count, self.swapchain_images.ptr);
 
+        self.swapchain_image_initialized = try self.allocator.alloc(bool, actual_image_count);
+        @memset(self.swapchain_image_initialized, false);
+
         std.log.info(
             "Swapchain created: {d} images, extent {d}x{d}",
             .{ actual_image_count, extent.width, extent.height },
@@ -468,6 +662,70 @@ pub const Renderer = struct {
         }
 
         std.log.info("Created {d} swapchain image views", .{self.swapchain_image_views.len});
+    }
+
+    fn create_depth_resources(self: *Renderer) !void {
+        const depth_format = vk.VK_FORMAT_D32_SFLOAT;
+
+        var image_info = std.mem.zeroes(vk.VkImageCreateInfo);
+        image_info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_info.imageType = vk.VK_IMAGE_TYPE_2D;
+        image_info.extent.width = self.swapchain_extent.width;
+        image_info.extent.height = self.swapchain_extent.height;
+        image_info.extent.depth = 1;
+        image_info.mipLevels = 1;
+        image_info.arrayLayers = 1;
+        image_info.format = depth_format;
+        image_info.tiling = vk.VK_IMAGE_TILING_OPTIMAL;
+        image_info.initialLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
+        image_info.usage = vk.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        image_info.samples = vk.VK_SAMPLE_COUNT_1_BIT;
+        image_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateImage(self.device, &image_info, null, &self.depth_image) != vk.VK_SUCCESS) {
+            return error.VkCreateImageFailed;
+        }
+
+        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetImageMemoryRequirements(self.device, self.depth_image, &mem_requirements);
+
+        const memory_type_index = try self.find_memory_type(
+            mem_requirements.memoryTypeBits,
+            vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        );
+
+        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = memory_type_index;
+
+        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &self.depth_image_memory) != vk.VK_SUCCESS) {
+            return error.VkAllocateMemoryFailed;
+        }
+
+        if (vk.vkBindImageMemory(self.device, self.depth_image, self.depth_image_memory, 0) != vk.VK_SUCCESS) {
+            return error.VkBindImageMemoryFailed;
+        }
+
+        var view_info = std.mem.zeroes(vk.VkImageViewCreateInfo);
+        view_info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_info.image = self.depth_image;
+        view_info.viewType = vk.VK_IMAGE_VIEW_TYPE_2D;
+        view_info.format = depth_format;
+        view_info.subresourceRange.aspectMask = vk.VK_IMAGE_ASPECT_DEPTH_BIT;
+        view_info.subresourceRange.baseMipLevel = 0;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.baseArrayLayer = 0;
+        view_info.subresourceRange.layerCount = 1;
+
+        if (vk.vkCreateImageView(self.device, &view_info, null, &self.depth_image_view) != vk.VK_SUCCESS) {
+            return error.VkCreateImageViewFailed;
+        }
+
+        std.log.info(
+            "Depth resources created: {d}x{d}",
+            .{ self.swapchain_extent.width, self.swapchain_extent.height },
+        );
     }
 
     fn create_command_pool(self: *Renderer) !void {
@@ -524,7 +782,248 @@ pub const Renderer = struct {
         std.log.info("Sync objects created", .{});
     }
 
-    fn record_command_buffer(self: *Renderer, command_buffer: vk.VkCommandBuffer, image_index: u32) !void {
+    fn create_vertex_buffer(self: *Renderer) !void {
+        const buffer_size = @sizeOf(@TypeOf(cube_vertices));
+
+        var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+        buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = buffer_size;
+        buffer_info.usage = vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateBuffer(self.device, &buffer_info, null, &self.vertex_buffer) != vk.VK_SUCCESS) {
+            return error.VkCreateBufferFailed;
+        }
+
+        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetBufferMemoryRequirements(self.device, self.vertex_buffer, &mem_requirements);
+
+        const memory_type_index = try self.find_memory_type(
+            mem_requirements.memoryTypeBits,
+            vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        );
+
+        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = memory_type_index;
+
+        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &self.vertex_buffer_memory) != vk.VK_SUCCESS) {
+            return error.VkAllocateMemoryFailed;
+        }
+
+        if (vk.vkBindBufferMemory(self.device, self.vertex_buffer, self.vertex_buffer_memory, 0) != vk.VK_SUCCESS) {
+            return error.VkBindBufferMemoryFailed;
+        }
+
+        var mapped: ?*anyopaque = null;
+        if (vk.vkMapMemory(
+            self.device,
+            self.vertex_buffer_memory,
+            0,
+            buffer_size,
+            0,
+            &mapped,
+        ) != vk.VK_SUCCESS) {
+            return error.VkMapMemoryFailed;
+        }
+        defer vk.vkUnmapMemory(self.device, self.vertex_buffer_memory);
+
+        const dst: [*]u8 = @ptrCast(mapped.?);
+        const src: [*]const u8 = @ptrCast(&cube_vertices);
+        @memcpy(dst[0..buffer_size], src[0..buffer_size]);
+
+        std.log.info("Vertex buffer created for {d} cube vertices", .{cube_vertices.len});
+    }
+
+    fn create_graphics_pipeline(self: *Renderer) !void {
+        var vert_module: vk.VkShaderModule = null;
+        var frag_module: vk.VkShaderModule = null;
+        defer {
+            if (vert_module != null) vk.vkDestroyShaderModule(self.device, vert_module, null);
+            if (frag_module != null) vk.vkDestroyShaderModule(self.device, frag_module, null);
+        }
+
+        vert_module = try self.create_shader_module(&triangle_vert_spv);
+        frag_module = try self.create_shader_module(&triangle_frag_spv);
+
+        var push_constant_range = std.mem.zeroes(vk.VkPushConstantRange);
+        push_constant_range.stageFlags = vk.VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.offset = 0;
+        push_constant_range.size = @sizeOf(PushConstants);
+
+        var pipeline_layout_info = std.mem.zeroes(vk.VkPipelineLayoutCreateInfo);
+        pipeline_layout_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipeline_layout_info.pushConstantRangeCount = 1;
+        pipeline_layout_info.pPushConstantRanges = &push_constant_range;
+
+        if (vk.vkCreatePipelineLayout(self.device, &pipeline_layout_info, null, &self.pipeline_layout) != vk.VK_SUCCESS) {
+            return error.VkCreatePipelineLayoutFailed;
+        }
+
+        var vert_stage = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
+        vert_stage.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vert_stage.stage = vk.VK_SHADER_STAGE_VERTEX_BIT;
+        vert_stage.module = vert_module;
+        vert_stage.pName = "main";
+
+        var frag_stage = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
+        frag_stage.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        frag_stage.stage = vk.VK_SHADER_STAGE_FRAGMENT_BIT;
+        frag_stage.module = frag_module;
+        frag_stage.pName = "main";
+
+        var shader_stages = [_]vk.VkPipelineShaderStageCreateInfo{
+            vert_stage,
+            frag_stage,
+        };
+
+        const binding_description = vk.VkVertexInputBindingDescription{
+            .binding = 0,
+            .stride = @sizeOf(Vertex),
+            .inputRate = vk.VK_VERTEX_INPUT_RATE_VERTEX,
+        };
+
+        const attribute_descriptions = [_]vk.VkVertexInputAttributeDescription{
+            .{
+                .location = 0,
+                .binding = 0,
+                .format = vk.VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = @offsetOf(Vertex, "pos"),
+            },
+            .{
+                .location = 1,
+                .binding = 0,
+                .format = vk.VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = @offsetOf(Vertex, "color"),
+            },
+        };
+
+        var vertex_input_info = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
+        vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertex_input_info.vertexBindingDescriptionCount = 1;
+        vertex_input_info.pVertexBindingDescriptions = &binding_description;
+        vertex_input_info.vertexAttributeDescriptionCount = attribute_descriptions.len;
+        vertex_input_info.pVertexAttributeDescriptions = &attribute_descriptions;
+
+        var input_assembly = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
+        input_assembly.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        input_assembly.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        input_assembly.primitiveRestartEnable = vk.VK_FALSE;
+
+        var viewport_state = std.mem.zeroes(vk.VkPipelineViewportStateCreateInfo);
+        viewport_state.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewport_state.viewportCount = 1;
+        viewport_state.scissorCount = 1;
+
+        const dynamic_states = [_]vk.VkDynamicState{
+            vk.VK_DYNAMIC_STATE_VIEWPORT,
+            vk.VK_DYNAMIC_STATE_SCISSOR,
+        };
+
+        var dynamic_state = std.mem.zeroes(vk.VkPipelineDynamicStateCreateInfo);
+        dynamic_state.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamic_state.dynamicStateCount = dynamic_states.len;
+        dynamic_state.pDynamicStates = &dynamic_states;
+
+        var rasterizer = std.mem.zeroes(vk.VkPipelineRasterizationStateCreateInfo);
+        rasterizer.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = vk.VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = vk.VK_FALSE;
+        rasterizer.polygonMode = vk.VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth = 1.0;
+        rasterizer.cullMode = vk.VK_CULL_MODE_NONE;
+        rasterizer.frontFace = vk.VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.depthBiasEnable = vk.VK_FALSE;
+
+        var multisampling = std.mem.zeroes(vk.VkPipelineMultisampleStateCreateInfo);
+        multisampling.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.rasterizationSamples = vk.VK_SAMPLE_COUNT_1_BIT;
+        multisampling.sampleShadingEnable = vk.VK_FALSE;
+
+        var depth_stencil = std.mem.zeroes(vk.VkPipelineDepthStencilStateCreateInfo);
+        depth_stencil.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depth_stencil.depthTestEnable = vk.VK_TRUE;
+        depth_stencil.depthWriteEnable = vk.VK_TRUE;
+        depth_stencil.depthCompareOp = vk.VK_COMPARE_OP_LESS;
+        depth_stencil.depthBoundsTestEnable = vk.VK_FALSE;
+        depth_stencil.stencilTestEnable = vk.VK_FALSE;
+
+        var color_blend_attachment = std.mem.zeroes(vk.VkPipelineColorBlendAttachmentState);
+        color_blend_attachment.colorWriteMask =
+            vk.VK_COLOR_COMPONENT_R_BIT |
+            vk.VK_COLOR_COMPONENT_G_BIT |
+            vk.VK_COLOR_COMPONENT_B_BIT |
+            vk.VK_COLOR_COMPONENT_A_BIT;
+        color_blend_attachment.blendEnable = vk.VK_FALSE;
+
+        var color_blending = std.mem.zeroes(vk.VkPipelineColorBlendStateCreateInfo);
+        color_blending.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        color_blending.logicOpEnable = vk.VK_FALSE;
+        color_blending.attachmentCount = 1;
+        color_blending.pAttachments = &color_blend_attachment;
+
+        var color_attachment_formats = [_]vk.VkFormat{
+            self.swapchain_format,
+        };
+
+        var rendering_info = std.mem.zeroes(vk.VkPipelineRenderingCreateInfo);
+        rendering_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        rendering_info.colorAttachmentCount = 1;
+        rendering_info.pColorAttachmentFormats = &color_attachment_formats;
+        rendering_info.depthAttachmentFormat = vk.VK_FORMAT_D32_SFLOAT;
+
+        var pipeline_info = std.mem.zeroes(vk.VkGraphicsPipelineCreateInfo);
+        pipeline_info.sType = vk.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeline_info.pNext = &rendering_info;
+        pipeline_info.stageCount = shader_stages.len;
+        pipeline_info.pStages = &shader_stages;
+        pipeline_info.pVertexInputState = &vertex_input_info;
+        pipeline_info.pInputAssemblyState = &input_assembly;
+        pipeline_info.pViewportState = &viewport_state;
+        pipeline_info.pRasterizationState = &rasterizer;
+        pipeline_info.pMultisampleState = &multisampling;
+        pipeline_info.pDepthStencilState = &depth_stencil;
+        pipeline_info.pColorBlendState = &color_blending;
+        pipeline_info.pDynamicState = &dynamic_state;
+        pipeline_info.layout = self.pipeline_layout;
+        pipeline_info.renderPass = null;
+        pipeline_info.subpass = 0;
+
+        if (vk.vkCreateGraphicsPipelines(
+            self.device,
+            null,
+            1,
+            &pipeline_info,
+            null,
+            &self.graphics_pipeline,
+        ) != vk.VK_SUCCESS) {
+            return error.VkCreateGraphicsPipelinesFailed;
+        }
+
+        std.log.info("Graphics pipeline created", .{});
+    }
+
+    fn create_shader_module(self: *Renderer, spirv_bytes: []const u8) !vk.VkShaderModule {
+        var create_info = std.mem.zeroes(vk.VkShaderModuleCreateInfo);
+        create_info.sType = vk.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        create_info.codeSize = spirv_bytes.len;
+        create_info.pCode = @ptrCast(@alignCast(spirv_bytes.ptr));
+
+        var module: vk.VkShaderModule = null;
+        if (vk.vkCreateShaderModule(self.device, &create_info, null, &module) != vk.VK_SUCCESS) {
+            return error.VkCreateShaderModuleFailed;
+        }
+
+        return module;
+    }
+
+    fn record_command_buffer(
+        self: *Renderer,
+        command_buffer: vk.VkCommandBuffer,
+        image_index: u32,
+        frame: FrameData,
+    ) !void {
         var begin_info = std.mem.zeroes(vk.VkCommandBufferBeginInfo);
         begin_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -535,9 +1034,14 @@ pub const Renderer = struct {
         const image = self.swapchain_images[image_index];
         const image_view = self.swapchain_image_views[image_index];
 
+        const was_initialized = self.swapchain_image_initialized[image_index];
+
         var to_color_barrier = std.mem.zeroes(vk.VkImageMemoryBarrier);
         to_color_barrier.sType = vk.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        to_color_barrier.oldLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
+        to_color_barrier.oldLayout = if (was_initialized)
+            vk.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        else
+            vk.VK_IMAGE_LAYOUT_UNDEFINED;
         to_color_barrier.newLayout = vk.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         to_color_barrier.srcQueueFamilyIndex = vk.VK_QUEUE_FAMILY_IGNORED;
         to_color_barrier.dstQueueFamilyIndex = vk.VK_QUEUE_FAMILY_IGNORED;
@@ -547,12 +1051,15 @@ pub const Renderer = struct {
         to_color_barrier.subresourceRange.levelCount = 1;
         to_color_barrier.subresourceRange.baseArrayLayer = 0;
         to_color_barrier.subresourceRange.layerCount = 1;
-        to_color_barrier.srcAccessMask = 0;
+        to_color_barrier.srcAccessMask = if (was_initialized)
+            0
+        else
+            0;
         to_color_barrier.dstAccessMask = vk.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
         vk.vkCmdPipelineBarrier(
             command_buffer,
-            vk.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            if (was_initialized) vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT else vk.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             0,
             0,
@@ -561,6 +1068,34 @@ pub const Renderer = struct {
             null,
             1,
             &to_color_barrier,
+        );
+
+        var depth_barrier = std.mem.zeroes(vk.VkImageMemoryBarrier);
+        depth_barrier.sType = vk.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        depth_barrier.oldLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
+        depth_barrier.newLayout = vk.VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        depth_barrier.srcQueueFamilyIndex = vk.VK_QUEUE_FAMILY_IGNORED;
+        depth_barrier.dstQueueFamilyIndex = vk.VK_QUEUE_FAMILY_IGNORED;
+        depth_barrier.image = self.depth_image;
+        depth_barrier.subresourceRange.aspectMask = vk.VK_IMAGE_ASPECT_DEPTH_BIT;
+        depth_barrier.subresourceRange.baseMipLevel = 0;
+        depth_barrier.subresourceRange.levelCount = 1;
+        depth_barrier.subresourceRange.baseArrayLayer = 0;
+        depth_barrier.subresourceRange.layerCount = 1;
+        depth_barrier.srcAccessMask = 0;
+        depth_barrier.dstAccessMask = vk.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        vk.vkCmdPipelineBarrier(
+            command_buffer,
+            vk.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            vk.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            &depth_barrier,
         );
 
         var clear = std.mem.zeroes(vk.VkClearValue);
@@ -577,6 +1112,18 @@ pub const Renderer = struct {
         color_attachment.storeOp = vk.VK_ATTACHMENT_STORE_OP_STORE;
         color_attachment.clearValue = clear;
 
+        var depth_clear = std.mem.zeroes(vk.VkClearValue);
+        depth_clear.depthStencil.depth = 1.0;
+        depth_clear.depthStencil.stencil = 0;
+
+        var depth_attachment = std.mem.zeroes(vk.VkRenderingAttachmentInfo);
+        depth_attachment.sType = vk.VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        depth_attachment.imageView = self.depth_image_view;
+        depth_attachment.imageLayout = vk.VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        depth_attachment.loadOp = vk.VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment.storeOp = vk.VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment.clearValue = depth_clear;
+
         var render_info = std.mem.zeroes(vk.VkRenderingInfo);
         render_info.sType = vk.VK_STRUCTURE_TYPE_RENDERING_INFO;
         render_info.renderArea.offset.x = 0;
@@ -585,8 +1132,65 @@ pub const Renderer = struct {
         render_info.layerCount = 1;
         render_info.colorAttachmentCount = 1;
         render_info.pColorAttachments = &color_attachment;
+        render_info.pDepthAttachment = &depth_attachment;
 
         vk.vkCmdBeginRendering(command_buffer, &render_info);
+
+        vk.vkCmdBindPipeline(
+            command_buffer,
+            vk.VK_PIPELINE_BIND_POINT_GRAPHICS,
+            self.graphics_pipeline,
+        );
+
+        var viewport = std.mem.zeroes(vk.VkViewport);
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = @floatFromInt(self.swapchain_extent.width);
+        viewport.height = @floatFromInt(self.swapchain_extent.height);
+        viewport.minDepth = 0.0;
+        viewport.maxDepth = 1.0;
+        vk.vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+        var scissor = std.mem.zeroes(vk.VkRect2D);
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent = self.swapchain_extent;
+        vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+        const vertex_buffers = [_]vk.VkBuffer{self.vertex_buffer};
+        const offsets = [_]vk.VkDeviceSize{0};
+        vk.vkCmdBindVertexBuffers(
+            command_buffer,
+            0,
+            1,
+            &vertex_buffers[0],
+            &offsets[0],
+        );
+
+        //  INDEXED MESHES UNDONE
+        //vk.vkCmdBindIndexBuffer(
+        //    command_buffer,
+        //    self.index_buffer,
+        //    0,
+        //    vk.VK_INDEX_TYPE_UINT32,
+        //);
+
+        const push_constants = PushConstants{
+            .view_proj = frame.view_proj.data,
+            .model = frame.model.data,
+        };
+
+        vk.vkCmdPushConstants(
+            command_buffer,
+            self.pipeline_layout,
+            vk.VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            @sizeOf(PushConstants),
+            &push_constants,
+        );
+
+        vk.vkCmdDraw(command_buffer, cube_vertices.len, 1, 0, 0);
+
         vk.vkCmdEndRendering(command_buffer);
 
         var to_present_barrier = std.mem.zeroes(vk.VkImageMemoryBarrier);
@@ -617,9 +1221,29 @@ pub const Renderer = struct {
             &to_present_barrier,
         );
 
+        self.swapchain_image_initialized[image_index] = true;
+
         if (vk.vkEndCommandBuffer(command_buffer) != vk.VK_SUCCESS) {
             return error.VkEndCommandBufferFailed;
         }
+    }
+
+    fn find_memory_type(self: *Renderer, type_filter: u32, properties: vk.VkMemoryPropertyFlags) !u32 {
+        var mem_properties = std.mem.zeroes(vk.VkPhysicalDeviceMemoryProperties);
+        vk.vkGetPhysicalDeviceMemoryProperties(self.physical_device, &mem_properties);
+
+        var i: u32 = 0;
+        while (i < mem_properties.memoryTypeCount) : (i += 1) {
+            const matches_type = (type_filter & (@as(u32, 1) << @intCast(i))) != 0;
+            const has_properties =
+                (mem_properties.memoryTypes[i].propertyFlags & properties) == properties;
+
+            if (matches_type and has_properties) {
+                return i;
+            }
+        }
+
+        return error.NoSuitableMemoryType;
     }
 
     fn check_device_extension_support(self: *Renderer, device: vk.VkPhysicalDevice) !bool {
