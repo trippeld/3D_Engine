@@ -14,59 +14,24 @@ const Vertex = struct {
 };
 
 const cube_vertices = [_]Vertex{
-    // front
     .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
     .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
     .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
     .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
 
-    // back
     .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
     .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
-
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
-
-    // left
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
-
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-
-    // right
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
-
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
-
-    // top
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
-
     .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
     .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+};
 
-    // bottom
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
-
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
+const cube_indices = [_]u32{
+    0, 1, 2, 2, 3, 0, // front
+    4, 6, 5, 6, 4, 7, // back
+    4, 0, 3, 3, 7, 4, // left
+    1, 5, 6, 6, 2, 1, // right
+    3, 2, 6, 6, 7, 3, // top
+    4, 5, 1, 1, 0, 4, // bottom
 };
 
 const PushConstants = struct {
@@ -113,6 +78,10 @@ pub const Renderer = struct {
     vertex_buffer: vk.VkBuffer = null,
     vertex_buffer_memory: vk.VkDeviceMemory = null,
 
+    index_buffer: vk.VkBuffer = null,
+    index_buffer_memory: vk.VkDeviceMemory = null,
+    index_count: u32 = 0,
+
     depth_image: vk.VkImage = null,
     depth_image_memory: vk.VkDeviceMemory = null,
     depth_image_view: vk.VkImageView = null,
@@ -136,6 +105,7 @@ pub const Renderer = struct {
         try self.create_command_buffers();
         try self.create_sync_objects();
         try self.create_vertex_buffer();
+        try self.create_index_buffer();
         try self.create_graphics_pipeline();
 
         std.log.info("Vulkan renderer clear-screen bootstrap completed", .{});
@@ -175,6 +145,16 @@ pub const Renderer = struct {
         if (self.depth_image_memory != null) {
             vk.vkFreeMemory(self.device, self.depth_image_memory, null);
             self.depth_image_memory = null;
+        }
+
+        if (self.index_buffer != null) {
+            vk.vkDestroyBuffer(self.device, self.index_buffer, null);
+            self.index_buffer = null;
+        }
+
+        if (self.index_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, self.index_buffer_memory, null);
+            self.index_buffer_memory = null;
         }
 
         if (self.vertex_buffer != null) {
@@ -836,6 +816,52 @@ pub const Renderer = struct {
         std.log.info("Vertex buffer created for {d} cube vertices", .{cube_vertices.len});
     }
 
+    fn create_index_buffer(self: *Renderer) !void {
+        const buffer_size = @sizeOf(u32) * cube_indices.len;
+
+        var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+        buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = buffer_size;
+        buffer_info.usage = vk.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vk.vkCreateBuffer(self.device, &buffer_info, null, &self.index_buffer) != vk.VK_SUCCESS) {
+            return error.VkCreateBufferFailed;
+        }
+
+        var mem_requirements = std.mem.zeroes(vk.VkMemoryRequirements);
+        vk.vkGetBufferMemoryRequirements(self.device, self.index_buffer, &mem_requirements);
+
+        const memory_type_index = try self.find_memory_type(
+            mem_requirements.memoryTypeBits,
+            vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        );
+
+        var alloc_info = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+        alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = memory_type_index;
+
+        if (vk.vkAllocateMemory(self.device, &alloc_info, null, &self.index_buffer_memory) != vk.VK_SUCCESS) {
+            return error.VkAllocateMemoryFailed;
+        }
+
+        if (vk.vkBindBufferMemory(self.device, self.index_buffer, self.index_buffer_memory, 0) != vk.VK_SUCCESS) {
+            return error.VkBindBufferMemoryFailed;
+        }
+
+        var mapped: ?*anyopaque = null;
+        if (vk.vkMapMemory(self.device, self.index_buffer_memory, 0, buffer_size, 0, &mapped) != vk.VK_SUCCESS) {
+            return error.VkMapMemoryFailed;
+        }
+        defer vk.vkUnmapMemory(self.device, self.index_buffer_memory);
+
+        const dst: [*]u32 = @ptrCast(@alignCast(mapped.?));
+        @memcpy(dst[0..cube_indices.len], cube_indices[0..]);
+
+        self.index_count = @intCast(cube_indices.len);
+    }
+
     fn create_graphics_pipeline(self: *Renderer) !void {
         var vert_module: vk.VkShaderModule = null;
         var frag_module: vk.VkShaderModule = null;
@@ -1167,13 +1193,12 @@ pub const Renderer = struct {
             &offsets[0],
         );
 
-        //  INDEXED MESHES UNDONE
-        //vk.vkCmdBindIndexBuffer(
-        //    command_buffer,
-        //    self.index_buffer,
-        //    0,
-        //    vk.VK_INDEX_TYPE_UINT32,
-        //);
+        vk.vkCmdBindIndexBuffer(
+            command_buffer,
+            self.index_buffer,
+            0,
+            vk.VK_INDEX_TYPE_UINT32,
+        );
 
         const push_constants = PushConstants{
             .view_proj = frame.view_proj.data,
@@ -1189,7 +1214,7 @@ pub const Renderer = struct {
             &push_constants,
         );
 
-        vk.vkCmdDraw(command_buffer, cube_vertices.len, 1, 0, 0);
+        vk.vkCmdDrawIndexed(command_buffer, self.index_count, 1, 0, 0, 0);
 
         vk.vkCmdEndRendering(command_buffer);
 
