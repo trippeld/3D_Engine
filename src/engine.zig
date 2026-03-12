@@ -3,7 +3,9 @@ const std = @import("std");
 const math = @import("core/math.zig");
 const platform = @import("platform/sdl.zig");
 const Camera = @import("scene/camera.zig").Camera;
-const Renderer = @import("render/vk/renderer.zig").Renderer;
+const render_vk = @import("render/vk/renderer.zig");
+const Renderer = render_vk.Renderer;
+const DrawObject = render_vk.DrawObject;
 
 pub fn run() !void {
     try platform.init();
@@ -74,15 +76,57 @@ pub fn run() !void {
 
         const rotation = math.Mat4.rotate_y(time);
 
-        const models = [_]math.Mat4{
-            math.Mat4.mul(left_translation, rotation),
-            math.Mat4.mul(center_translation, rotation),
-            math.Mat4.mul(right_translation, rotation),
+        const left_model = math.Mat4.mul(left_translation, rotation);
+        const center_model = math.Mat4.mul(center_translation, rotation);
+        const right_model = math.Mat4.mul(right_translation, rotation);
+
+        const ground_translation = math.Mat4.translate(math.Vec3.init(0.0, -1.25, 0.0));
+        const ground_scale = math.Mat4.scale(math.Vec3.init(12.0, 0.1, 12.0));
+        const ground_model = math.Mat4.mul(ground_translation, ground_scale);
+
+        const light_pos = math.Vec3.init(3.0, 4.0, 2.0);
+
+        const light_translation = math.Mat4.translate(light_pos);
+        const light_scale = math.Mat4.scale(math.Vec3.init(0.2, 0.2, 0.2));
+        const light_model = math.Mat4.mul(light_translation, light_scale);
+
+        const objects = [_]DrawObject{
+            .{
+                .model = left_model,
+                .color = math.Vec3.init(1.0, 0.25, 0.25),
+                .specular_strength = 0.0,
+                .shininess = 4.0,
+            },
+            .{
+                .model = center_model,
+                .color = math.Vec3.init(0.25, 1.0, 0.35),
+                .specular_strength = 0.35,
+                .shininess = 16.0,
+            },
+            .{
+                .model = right_model,
+                .color = math.Vec3.init(0.35, 0.45, 1.0),
+                .specular_strength = 1.2,
+                .shininess = 128.0,
+            },
+            .{
+                .model = ground_model,
+                .color = math.Vec3.init(0.55, 0.55, 0.6),
+                .specular_strength = 0.0,
+                .shininess = 2.0,
+            },
+            .{
+                .model = light_model,
+                .color = math.Vec3.init(1.0, 1.0, 1.0),
+                .specular_strength = 0.0,
+                .shininess = 1.0,
+            },
         };
 
         try renderer.draw_frame(.{
             .view_proj = view_proj,
-            .models = models[0..],
+            .camera_pos = camera.position,
+            .objects = objects[0..],
         });
 
         if (print_accum >= 1.0) {

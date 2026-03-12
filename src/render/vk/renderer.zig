@@ -3,14 +3,22 @@ const sdl = @import("../../platform/sdl.zig");
 const vk = sdl.c;
 const math = @import("../../core/math.zig");
 
+pub const DrawObject = struct {
+    model: math.Mat4,
+    color: math.Vec3,
+    specular_strength: f32,
+    shininess: f32,
+};
+
 pub const FrameData = struct {
     view_proj: math.Mat4,
-    models: []const math.Mat4,
+    camera_pos: math.Vec3,
+    objects: []const DrawObject,
 };
 
 const Vertex = struct {
     pos: [3]f32,
-    color: [3]f32,
+    normal: [3]f32,
 };
 
 const Mesh = struct {
@@ -23,29 +31,57 @@ const Mesh = struct {
 };
 
 const cube_vertices = [_]Vertex{
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .color = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .color = .{ 0.0, 1.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .color = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .color = .{ 1.0, 1.0, 0.0 } },
+    // Front (+Z)
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
 
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .color = .{ 1.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .color = .{ 0.0, 1.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .color = .{ 1.0, 1.0, 1.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .color = .{ 0.2, 0.2, 0.2 } },
+    // Back (-Z)
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
+
+    // Left (-X)
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
+
+    // Right (+X)
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
+
+    // Top (+Y)
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
+
+    // Bottom (-Y)
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
 };
 
 const cube_indices = [_]u32{
     0, 1, 2, 2, 3, 0, // front
-    4, 6, 5, 6, 4, 7, // back
-    4, 0, 3, 3, 7, 4, // left
-    1, 5, 6, 6, 2, 1, // right
-    3, 2, 6, 6, 7, 3, // top
-    4, 5, 1, 1, 0, 4, // bottom
+    4, 5, 6, 6, 7, 4, // back
+    8, 9, 10, 10, 11, 8, // left
+    12, 13, 14, 14, 15, 12, // right
+    16, 17, 18, 18, 19, 16, // top
+    20, 21, 22, 22, 23, 20, // bottom
 };
 
-const PushConstants = struct {
+const PushConstants = extern struct {
     view_proj: [16]f32,
     model: [16]f32,
+    camera_pos: [4]f32,
+    base_color: [4]f32,
 };
 
 const triangle_vert_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.vert.spv").*;
@@ -906,7 +942,7 @@ pub const Renderer = struct {
         frag_module = try self.create_shader_module(&triangle_frag_spv);
 
         var push_constant_range = std.mem.zeroes(vk.VkPushConstantRange);
-        push_constant_range.stageFlags = vk.VK_SHADER_STAGE_VERTEX_BIT;
+        push_constant_range.stageFlags = vk.VK_SHADER_STAGE_VERTEX_BIT | vk.VK_SHADER_STAGE_FRAGMENT_BIT;
         push_constant_range.offset = 0;
         push_constant_range.size = @sizeOf(PushConstants);
 
@@ -953,7 +989,7 @@ pub const Renderer = struct {
                 .location = 1,
                 .binding = 0,
                 .format = vk.VK_FORMAT_R32G32B32_SFLOAT,
-                .offset = @offsetOf(Vertex, "color"),
+                .offset = @offsetOf(Vertex, "normal"),
             },
         };
 
@@ -1232,16 +1268,28 @@ pub const Renderer = struct {
             vk.VK_INDEX_TYPE_UINT32,
         );
 
-        for (frame.models) |model| {
+        for (frame.objects) |object| {
             const push_constants = PushConstants{
                 .view_proj = frame.view_proj.data,
-                .model = model.data,
+                .model = object.model.data,
+                .camera_pos = .{
+                    frame.camera_pos.x,
+                    frame.camera_pos.y,
+                    frame.camera_pos.z,
+                    0.0,
+                },
+                .base_color = .{
+                    object.color.x,
+                    object.color.y,
+                    object.color.z,
+                    0.0,
+                },
             };
 
             vk.vkCmdPushConstants(
                 command_buffer,
                 self.pipeline_layout,
-                vk.VK_SHADER_STAGE_VERTEX_BIT,
+                vk.VK_SHADER_STAGE_VERTEX_BIT | vk.VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,
                 @sizeOf(PushConstants),
                 &push_constants,

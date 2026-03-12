@@ -12,7 +12,7 @@ The majority of this document is the **development roadmap**, listing the compon
 
 # Roadmap
 
-Current Development Step is: Lighting & Shading → Vertex normals
+Current Development Step is: Lighting & Shading → Physically based shading (PBR)
 
 ## Core Platform
 
@@ -71,9 +71,9 @@ Current Development Step is: Lighting & Shading → Vertex normals
 
 # Lighting & Shading
 
-* [ ] Vertex normals
-* [ ] Directional light (Lambert)
-* [ ] Specular lighting
+* [x] Vertex normals
+* [x] Directional light (Lambert)
+* [x] Specular lighting
 * [ ] Physically based shading (PBR)
 * [ ] Material system
 * [ ] Shader organization

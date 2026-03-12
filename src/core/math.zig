@@ -107,6 +107,17 @@ pub const Mat4 = struct {
         return m;
     }
 
+    pub fn scale(v: Vec3) Mat4 {
+        return .{
+            .data = .{
+                v.x, 0,   0,   0,
+                0,   v.y, 0,   0,
+                0,   0,   v.z, 0,
+                0,   0,   0,   1,
+            },
+        };
+    }
+
     pub fn look_at(eye: Vec3, center: Vec3, up: Vec3) Mat4 {
         const f = Vec3.normalize(Vec3.sub(center, eye));
         const s = Vec3.normalize(Vec3.cross(f, up));
