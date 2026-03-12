@@ -1,3 +1,11 @@
+<p align="center">
+  <img src="screenshots/demo.png" width="700">
+</p>
+
+<p align="center">
+  Rotating cubes with directional lighting and specular highlights
+</p>
+
 # 3D Engine (Zig + Vulkan)
 
 A minimalistic, modern 3D engine written in **Zig** using **Vulkan**, **SDL3**, and **OpenAL Soft**.
