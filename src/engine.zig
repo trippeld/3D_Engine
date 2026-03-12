@@ -70,9 +70,11 @@ pub fn run() !void {
 
         const time = timer.total_time();
 
-        const left_translation = math.Mat4.translate(math.Vec3.init(-2.0, 0.0, -5.0));
-        const center_translation = math.Mat4.translate(math.Vec3.init(0.0, 0.0, -3.0));
-        const right_translation = math.Mat4.translate(math.Vec3.init(2.0, 0.0, -5.0));
+        const cube_y: f32 = -0.15;
+
+        const left_translation = math.Mat4.translate(math.Vec3.init(-2.0, cube_y, 0.0));
+        const center_translation = math.Mat4.translate(math.Vec3.init(0.0, cube_y, 0.0));
+        const right_translation = math.Mat4.translate(math.Vec3.init(2.0, cube_y, 0.0));
 
         const rotation = math.Mat4.rotate_y(time);
 
@@ -84,7 +86,17 @@ pub fn run() !void {
         const ground_scale = math.Mat4.scale(math.Vec3.init(12.0, 0.1, 12.0));
         const ground_model = math.Mat4.mul(ground_translation, ground_scale);
 
-        const light_pos = math.Vec3.init(3.0, 4.0, 2.0);
+        const light_radius: f32 = 4.0;
+        const light_height: f32 = 3.0;
+        const light_speed: f32 = 0.45;
+
+        const light_pos = math.Vec3.init(
+            @cos(time * light_speed) * light_radius,
+            light_height,
+            @sin(time * light_speed) * light_radius,
+        );
+
+        const light_color = math.Vec3.init(1.0, 0.9, 0.7);
 
         const light_translation = math.Mat4.translate(light_pos);
         const light_scale = math.Mat4.scale(math.Vec3.init(0.2, 0.2, 0.2));
@@ -96,36 +108,43 @@ pub fn run() !void {
                 .color = math.Vec3.init(1.0, 0.25, 0.25),
                 .specular_strength = 0.0,
                 .shininess = 4.0,
+                .unlit = 0.0,
             },
             .{
                 .model = center_model,
                 .color = math.Vec3.init(0.25, 1.0, 0.35),
                 .specular_strength = 0.35,
                 .shininess = 16.0,
+                .unlit = 0.0,
             },
             .{
                 .model = right_model,
                 .color = math.Vec3.init(0.35, 0.45, 1.0),
                 .specular_strength = 1.2,
                 .shininess = 128.0,
+                .unlit = 0.0,
             },
             .{
                 .model = ground_model,
                 .color = math.Vec3.init(0.55, 0.55, 0.6),
                 .specular_strength = 0.0,
                 .shininess = 2.0,
+                .unlit = 0.0,
             },
             .{
                 .model = light_model,
-                .color = math.Vec3.init(1.0, 1.0, 1.0),
+                .color = light_color,
                 .specular_strength = 0.0,
                 .shininess = 1.0,
+                .unlit = 1.0,
             },
         };
 
         try renderer.draw_frame(.{
             .view_proj = view_proj,
             .camera_pos = camera.position,
+            .light_pos = light_pos,
+            .light_color = light_color,
             .objects = objects[0..],
         });
 

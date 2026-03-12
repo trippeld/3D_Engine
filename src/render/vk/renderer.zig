@@ -8,11 +8,14 @@ pub const DrawObject = struct {
     color: math.Vec3,
     specular_strength: f32,
     shininess: f32,
+    unlit: f32,
 };
 
 pub const FrameData = struct {
     view_proj: math.Mat4,
     camera_pos: math.Vec3,
+    light_pos: math.Vec3,
+    light_color: math.Vec3,
     objects: []const DrawObject,
 };
 
@@ -82,6 +85,9 @@ const PushConstants = extern struct {
     model: [16]f32,
     camera_pos: [4]f32,
     base_color: [4]f32,
+    material_params: [4]f32,
+    light_pos: [4]f32,
+    light_color: [4]f32,
 };
 
 const triangle_vert_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.vert.spv").*;
@@ -1283,6 +1289,24 @@ pub const Renderer = struct {
                     object.color.y,
                     object.color.z,
                     0.0,
+                },
+                .material_params = .{
+                    object.specular_strength,
+                    object.shininess,
+                    object.unlit,
+                    0.0,
+                },
+                .light_pos = .{
+                    frame.light_pos.x,
+                    frame.light_pos.y,
+                    frame.light_pos.z,
+                    1.0,
+                },
+                .light_color = .{
+                    frame.light_color.x,
+                    frame.light_color.y,
+                    frame.light_color.z,
+                    1.0,
                 },
             };
 
