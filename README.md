@@ -20,7 +20,7 @@ The majority of this document is the **development roadmap**, listing the compon
 
 # Roadmap
 
-Current Development Step is: Lighting & Shading → Physically based shading (PBR) -> First Material system, and then Shader organization.
+Current Development Step is: Lighting & Shading -> First Material system, and then Shader organization.
 
 ## Core Platform
 
