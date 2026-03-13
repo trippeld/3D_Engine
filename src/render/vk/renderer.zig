@@ -3,20 +3,32 @@ const sdl = @import("../../platform/sdl.zig");
 const vk = sdl.c;
 const math = @import("../../core/math.zig");
 
-pub const DrawObject = struct {
-    model: math.Mat4,
-    color: math.Vec3,
+pub const Material = struct {
+    base_color: math.Vec3,
     specular_strength: f32,
     shininess: f32,
     unlit: f32,
 };
 
+pub const DrawObject = struct {
+    model: math.Mat4,
+    material: Material,
+};
+
+pub const Light = struct {
+    position: math.Vec3,
+    color: math.Vec3,
+};
+
+pub const Scene = struct {
+    light: Light,
+    objects: []const DrawObject,
+};
+
 pub const FrameData = struct {
     view_proj: math.Mat4,
     camera_pos: math.Vec3,
-    light_pos: math.Vec3,
-    light_color: math.Vec3,
-    objects: []const DrawObject,
+    scene: Scene,
 };
 
 const Vertex = struct {
@@ -1274,7 +1286,7 @@ pub const Renderer = struct {
             vk.VK_INDEX_TYPE_UINT32,
         );
 
-        for (frame.objects) |object| {
+        for (frame.scene.objects) |object| {
             const push_constants = PushConstants{
                 .view_proj = frame.view_proj.data,
                 .model = object.model.data,
@@ -1285,27 +1297,27 @@ pub const Renderer = struct {
                     0.0,
                 },
                 .base_color = .{
-                    object.color.x,
-                    object.color.y,
-                    object.color.z,
+                    object.material.base_color.x,
+                    object.material.base_color.y,
+                    object.material.base_color.z,
                     0.0,
                 },
                 .material_params = .{
-                    object.specular_strength,
-                    object.shininess,
-                    object.unlit,
+                    object.material.specular_strength,
+                    object.material.shininess,
+                    object.material.unlit,
                     0.0,
                 },
                 .light_pos = .{
-                    frame.light_pos.x,
-                    frame.light_pos.y,
-                    frame.light_pos.z,
+                    frame.scene.light.position.x,
+                    frame.scene.light.position.y,
+                    frame.scene.light.position.z,
                     1.0,
                 },
                 .light_color = .{
-                    frame.light_color.x,
-                    frame.light_color.y,
-                    frame.light_color.z,
+                    frame.scene.light.color.x,
+                    frame.scene.light.color.y,
+                    frame.scene.light.color.z,
                     1.0,
                 },
             };
