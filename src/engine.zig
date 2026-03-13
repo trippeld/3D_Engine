@@ -73,11 +73,11 @@ pub fn run() !void {
 
         const time = timer.total_time();
 
-        const built_scene = scene_builder.build_scene(time);
+        const built_scene = scene_builder.make_scene(time);
 
         const scene = Scene{
             .light = built_scene.light,
-            .objects = built_scene.objects[0..],
+            .objects = built_scene.objects[0..built_scene.object_count],
         };
 
         try renderer.draw_frame(.{
