@@ -155,7 +155,6 @@ Current Development Step is: Lighting & Shading -> First Material system, and th
 
 # Tools
 
-* [ ] Shader compilation pipeline
 * [ ] Asset conversion tools
 * [ ] Development debugging utilities
 

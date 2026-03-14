@@ -2,38 +2,22 @@ const std = @import("std");
 const sdl = @import("../../platform/sdl.zig");
 const vk = sdl.c;
 const math = @import("../../core/math.zig");
+const mesh_data = @import("../mesh.zig");
+const render_scene = @import("../render_scene.zig");
+const render_camera = @import("../render_camera.zig");
 
-pub const Material = struct {
-    base_color: math.Vec3,
-    specular_strength: f32,
-    shininess: f32,
-    unlit: f32,
-};
+pub const Material = render_scene.Material;
+pub const DrawObject = render_scene.DrawObject;
+pub const Light = render_scene.Light;
+pub const RenderScene = render_scene.RenderScene;
+pub const RenderCamera = render_camera.RenderCamera;
 
-pub const DrawObject = struct {
-    model: math.Mat4,
-    material: Material,
-};
-
-pub const Light = struct {
-    position: math.Vec3,
-    color: math.Vec3,
-};
-
-pub const Scene = struct {
-    light: Light,
-    objects: []const DrawObject,
-};
+pub const StaticMesh = mesh_data.StaticMesh;
+pub const Vertex = mesh_data.Vertex;
 
 pub const FrameData = struct {
-    view_proj: math.Mat4,
-    camera_pos: math.Vec3,
-    scene: Scene,
-};
-
-const Vertex = struct {
-    pos: [3]f32,
-    normal: [3]f32,
+    camera: RenderCamera,
+    scene: RenderScene,
 };
 
 const Mesh = struct {
@@ -43,53 +27,6 @@ const Mesh = struct {
     index_buffer: vk.VkBuffer = null,
     index_buffer_memory: vk.VkDeviceMemory = null,
     index_count: u32 = 0,
-};
-
-const cube_vertices = [_]Vertex{
-    // Front (+Z)
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0.0, 0.0, 1.0 } },
-
-    // Back (-Z)
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0.0, 0.0, -1.0 } },
-
-    // Left (-X)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ -1.0, 0.0, 0.0 } },
-
-    // Right (+X)
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 1.0, 0.0, 0.0 } },
-
-    // Top (+Y)
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0.0, 1.0, 0.0 } },
-
-    // Bottom (-Y)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0.0, -1.0, 0.0 } },
-};
-
-const cube_indices = [_]u32{
-    0, 1, 2, 2, 3, 0, // front
-    4, 5, 6, 6, 7, 4, // back
-    8, 9, 10, 10, 11, 8, // left
-    12, 13, 14, 14, 15, 12, // right
-    16, 17, 18, 18, 19, 16, // top
-    20, 21, 22, 22, 23, 20, // bottom
 };
 
 const PushConstants = extern struct {
@@ -138,7 +75,8 @@ pub const Renderer = struct {
     pipeline_layout: vk.VkPipelineLayout = null,
     graphics_pipeline: vk.VkPipeline = null,
 
-    mesh: Mesh = .{},
+    cube_mesh: Mesh = .{},
+    plane_mesh: Mesh = .{},
 
     depth_image: vk.VkImage = null,
     depth_image_memory: vk.VkDeviceMemory = null,
@@ -162,8 +100,7 @@ pub const Renderer = struct {
         try self.create_command_pool();
         try self.create_command_buffers();
         try self.create_sync_objects();
-        try self.create_vertex_buffer();
-        try self.create_index_buffer();
+        try self.create_builtin_meshes();
         try self.create_graphics_pipeline();
 
         std.log.info("Vulkan renderer clear-screen bootstrap completed", .{});
@@ -205,25 +142,8 @@ pub const Renderer = struct {
             self.depth_image_memory = null;
         }
 
-        if (self.mesh.index_buffer != null) {
-            vk.vkDestroyBuffer(self.device, self.mesh.index_buffer, null);
-            self.mesh.index_buffer = null;
-        }
-
-        if (self.mesh.index_buffer_memory != null) {
-            vk.vkFreeMemory(self.device, self.mesh.index_buffer_memory, null);
-            self.mesh.index_buffer_memory = null;
-        }
-
-        if (self.mesh.vertex_buffer != null) {
-            vk.vkDestroyBuffer(self.device, self.mesh.vertex_buffer, null);
-            self.mesh.vertex_buffer = null;
-        }
-
-        if (self.mesh.vertex_buffer_memory != null) {
-            vk.vkFreeMemory(self.device, self.mesh.vertex_buffer_memory, null);
-            self.mesh.vertex_buffer_memory = null;
-        }
+        self.destroy_mesh(&self.cube_mesh);
+        self.destroy_mesh(&self.plane_mesh);
 
         if (self.graphics_pipeline != null) {
             vk.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
@@ -820,8 +740,50 @@ pub const Renderer = struct {
         std.log.info("Sync objects created", .{});
     }
 
-    fn create_vertex_buffer(self: *Renderer) !void {
-        const buffer_size: vk.VkDeviceSize = @sizeOf(Vertex) * cube_vertices.len;
+    fn create_builtin_meshes(self: *Renderer) !void {
+        try self.create_mesh(
+            mesh_data.cube_vertices[0..],
+            mesh_data.cube_indices[0..],
+            &self.cube_mesh,
+        );
+
+        errdefer self.destroy_mesh(&self.cube_mesh);
+
+        try self.create_mesh(
+            mesh_data.plane_vertices[0..],
+            mesh_data.plane_indices[0..],
+            &self.plane_mesh,
+        );
+    }
+
+    fn create_mesh(
+        self: *Renderer,
+        vertices: []const Vertex,
+        indices: []const u32,
+        mesh: *Mesh,
+    ) !void {
+        try self.create_mesh_vertex_buffer(vertices, mesh);
+        errdefer {
+            if (mesh.vertex_buffer != null) {
+                vk.vkDestroyBuffer(self.device, mesh.vertex_buffer, null);
+                mesh.vertex_buffer = null;
+            }
+            if (mesh.vertex_buffer_memory != null) {
+                vk.vkFreeMemory(self.device, mesh.vertex_buffer_memory, null);
+                mesh.vertex_buffer_memory = null;
+            }
+        }
+
+        try self.create_mesh_index_buffer(indices, mesh);
+        mesh.index_count = @intCast(indices.len);
+    }
+
+    fn create_mesh_vertex_buffer(
+        self: *Renderer,
+        vertices: []const Vertex,
+        mesh: *Mesh,
+    ) !void {
+        const buffer_size: vk.VkDeviceSize = @sizeOf(Vertex) * vertices.len;
 
         var staging_buffer: vk.VkBuffer = null;
         var staging_buffer_memory: vk.VkDeviceMemory = null;
@@ -830,7 +792,6 @@ pub const Renderer = struct {
             if (staging_buffer_memory != null) vk.vkFreeMemory(self.device, staging_buffer_memory, null);
         }
 
-        // Staging buffer: host visible
         var staging_buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
         staging_buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         staging_buffer_info.size = buffer_size;
@@ -869,22 +830,25 @@ pub const Renderer = struct {
         defer vk.vkUnmapMemory(self.device, staging_buffer_memory);
 
         const dst: [*]Vertex = @ptrCast(@alignCast(mapped.?));
-        @memcpy(dst[0..cube_vertices.len], cube_vertices[0..]);
+        @memcpy(dst[0..vertices.len], vertices);
 
-        // Real GPU vertex buffer: device local
         try self.create_buffer(
             buffer_size,
             vk.VK_BUFFER_USAGE_TRANSFER_DST_BIT | vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &self.mesh.vertex_buffer,
-            &self.mesh.vertex_buffer_memory,
+            &mesh.vertex_buffer,
+            &mesh.vertex_buffer_memory,
         );
 
-        try self.copy_buffer(staging_buffer, self.mesh.vertex_buffer, buffer_size);
+        try self.copy_buffer(staging_buffer, mesh.vertex_buffer, buffer_size);
     }
 
-    fn create_index_buffer(self: *Renderer) !void {
-        const buffer_size: vk.VkDeviceSize = @sizeOf(u32) * cube_indices.len;
+    fn create_mesh_index_buffer(
+        self: *Renderer,
+        indices: []const u32,
+        mesh: *Mesh,
+    ) !void {
+        const buffer_size: vk.VkDeviceSize = @sizeOf(u32) * indices.len;
 
         var staging_buffer: vk.VkBuffer = null;
         var staging_buffer_memory: vk.VkDeviceMemory = null;
@@ -893,7 +857,6 @@ pub const Renderer = struct {
             if (staging_buffer_memory != null) vk.vkFreeMemory(self.device, staging_buffer_memory, null);
         }
 
-        // Staging buffer: host visible
         var staging_buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
         staging_buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         staging_buffer_info.size = buffer_size;
@@ -932,20 +895,41 @@ pub const Renderer = struct {
         defer vk.vkUnmapMemory(self.device, staging_buffer_memory);
 
         const dst: [*]u32 = @ptrCast(@alignCast(mapped.?));
-        @memcpy(dst[0..cube_indices.len], cube_indices[0..]);
+        @memcpy(dst[0..indices.len], indices);
 
-        // Real GPU index buffer: device local
         try self.create_buffer(
             buffer_size,
             vk.VK_BUFFER_USAGE_TRANSFER_DST_BIT | vk.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             vk.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &self.mesh.index_buffer,
-            &self.mesh.index_buffer_memory,
+            &mesh.index_buffer,
+            &mesh.index_buffer_memory,
         );
 
-        try self.copy_buffer(staging_buffer, self.mesh.index_buffer, buffer_size);
+        try self.copy_buffer(staging_buffer, mesh.index_buffer, buffer_size);
+    }
 
-        self.mesh.index_count = @intCast(cube_indices.len);
+    fn destroy_mesh(self: *Renderer, mesh: *Mesh) void {
+        if (mesh.index_buffer != null) {
+            vk.vkDestroyBuffer(self.device, mesh.index_buffer, null);
+            mesh.index_buffer = null;
+        }
+
+        if (mesh.index_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, mesh.index_buffer_memory, null);
+            mesh.index_buffer_memory = null;
+        }
+
+        if (mesh.vertex_buffer != null) {
+            vk.vkDestroyBuffer(self.device, mesh.vertex_buffer, null);
+            mesh.vertex_buffer = null;
+        }
+
+        if (mesh.vertex_buffer_memory != null) {
+            vk.vkFreeMemory(self.device, mesh.vertex_buffer_memory, null);
+            mesh.vertex_buffer_memory = null;
+        }
+
+        mesh.index_count = 0;
     }
 
     fn create_graphics_pipeline(self: *Renderer) !void {
@@ -1130,6 +1114,13 @@ pub const Renderer = struct {
         return module;
     }
 
+    fn get_mesh(self: *Renderer, static_mesh: StaticMesh) *const Mesh {
+        return switch (static_mesh) {
+            .cube => &self.cube_mesh,
+            .plane => &self.plane_mesh,
+        };
+    }
+
     fn record_command_buffer(
         self: *Renderer,
         command_buffer: vk.VkCommandBuffer,
@@ -1269,31 +1260,36 @@ pub const Renderer = struct {
         scissor.extent = self.swapchain_extent;
         vk.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-        const vertex_buffers = [_]vk.VkBuffer{self.mesh.vertex_buffer};
-        const offsets = [_]vk.VkDeviceSize{0};
-        vk.vkCmdBindVertexBuffers(
-            command_buffer,
-            0,
-            1,
-            &vertex_buffers[0],
-            &offsets[0],
-        );
-
-        vk.vkCmdBindIndexBuffer(
-            command_buffer,
-            self.mesh.index_buffer,
-            0,
-            vk.VK_INDEX_TYPE_UINT32,
-        );
-
         for (frame.scene.objects) |object| {
+            const mesh = self.get_mesh(object.static_mesh);
+
+            const vertex_buffers = [_]vk.VkBuffer{mesh.vertex_buffer};
+            const offsets = [_]vk.VkDeviceSize{0};
+
+            vk.vkCmdBindVertexBuffers(
+                command_buffer,
+                0,
+                1,
+                &vertex_buffers[0],
+                &offsets[0],
+            );
+
+            vk.vkCmdBindIndexBuffer(
+                command_buffer,
+                mesh.index_buffer,
+                0,
+                vk.VK_INDEX_TYPE_UINT32,
+            );
+
+            const view_proj = math.Mat4.mul(frame.camera.projection, frame.camera.view);
+
             const push_constants = PushConstants{
-                .view_proj = frame.view_proj.data,
+                .view_proj = view_proj.data,
                 .model = object.model.data,
                 .camera_pos = .{
-                    frame.camera_pos.x,
-                    frame.camera_pos.y,
-                    frame.camera_pos.z,
+                    frame.camera.position.x,
+                    frame.camera.position.y,
+                    frame.camera.position.z,
                     0.0,
                 },
                 .base_color = .{
@@ -1331,7 +1327,7 @@ pub const Renderer = struct {
                 &push_constants,
             );
 
-            vk.vkCmdDrawIndexed(command_buffer, self.mesh.index_count, 1, 0, 0, 0);
+            vk.vkCmdDrawIndexed(command_buffer, mesh.index_count, 1, 0, 0, 0);
         }
 
         vk.vkCmdEndRendering(command_buffer);

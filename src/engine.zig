@@ -1,14 +1,18 @@
 const std = @import("std");
 const math = @import("core/math.zig");
 const platform = @import("platform/sdl.zig");
-const Camera = @import("scene/camera.zig").Camera;
 const render_vk = @import("render/vk/renderer.zig");
+const render_scene = @import("render/render_scene.zig");
+const render_camera = @import("render/render_camera.zig");
+const scene_builder = @import("scene/scene.zig");
+
+const RenderScene = render_scene.RenderScene;
+const Camera = @import("scene/camera.zig").Camera;
 const Renderer = render_vk.Renderer;
 const DrawObject = render_vk.DrawObject;
 const Material = render_vk.Material;
 const Light = render_vk.Light;
-const Scene = render_vk.Scene;
-const scene_builder = @import("scene/scene.zig");
+const RenderCamera = render_camera.RenderCamera;
 
 pub fn run() !void {
     try platform.init();
@@ -69,20 +73,24 @@ pub fn run() !void {
         proj.data[5] *= -1.0;
 
         const view = camera.view_matrix();
-        const view_proj = math.Mat4.mul(proj, view);
+
+        const render_camera_data = RenderCamera{
+            .view = view,
+            .projection = proj,
+            .position = camera.position,
+        };
 
         const time = timer.total_time();
 
         const built_scene = scene_builder.make_scene(time);
 
-        const scene = Scene{
+        const scene = RenderScene{
             .light = built_scene.light,
             .objects = built_scene.objects[0..built_scene.object_count],
         };
 
         try renderer.draw_frame(.{
-            .view_proj = view_proj,
-            .camera_pos = camera.position,
+            .camera = render_camera_data,
             .scene = scene,
         });
 

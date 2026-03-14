@@ -37,7 +37,7 @@ I want to continue developing this engine step-by-step.
 
 Your role:
 When I say "go", give me the next implementation step. 
-I will compile and run the code, then report errors or results.
+I will compile and run the code, then report errors or results or say go to continue.
 
 Important:
 Only suggest steps that move toward a modern engine architecture.
@@ -50,17 +50,9 @@ Avoid:
 
 Focus on the next logical engine feature.
 
-Examples of future systems I expect to implement eventually:
-- PBR shading
-- proper material system
-- mesh loading (GLTF)
-- camera system
-- scene graph or ECS
-- lighting system
-- shadow mapping
-- resource management
+Future systems I expect to implement is in the roadmap in the README.md.
 
 But implement things in the correct order.
 
 First step:
-Analyze the project and tell me what the next engine milestone should be.
+Analyze the project and tell me what the next engine milestone should be. Then after that: Give me the code and remember always to tell me where and what in the code. And always tell me when we finished another milestone in the roadmap.

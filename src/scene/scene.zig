@@ -1,11 +1,14 @@
 const math = @import("../core/math.zig");
-const render_vk = @import("../render/vk/renderer.zig");
 const scene_config = @import("scene_config.zig");
+const render_scene = @import("../render/render_scene.zig");
+const mesh = @import("../render/mesh.zig");
 
-const DrawObject = render_vk.DrawObject;
-const Material = render_vk.Material;
-const Light = render_vk.Light;
-const Scene = render_vk.Scene;
+const DrawObject = render_scene.DrawObject;
+const Material = render_scene.Material;
+const Light = render_scene.Light;
+const RenderScene = render_scene.RenderScene;
+const StaticMesh = mesh.StaticMesh;
+
 const main_scene_config = scene_config.make_main_scene_config();
 
 const max_scene_objects = 16;
@@ -25,15 +28,19 @@ fn lit_material(
         .base_color = base_color,
         .specular_strength = specular_strength,
         .shininess = shininess,
+        .emissive_color = math.Vec3.init(0.0, 0.0, 0.0),
+        .emissive_strength = 0.0,
         .unlit = 0.0,
     };
 }
 
-fn unlit_material(base_color: math.Vec3) Material {
+fn unlit_material(color: math.Vec3) Material {
     return .{
-        .base_color = base_color,
+        .base_color = color,
         .specular_strength = 0.0,
         .shininess = 1.0,
+        .emissive_color = color,
+        .emissive_strength = 1.0,
         .unlit = 1.0,
     };
 }
@@ -45,6 +52,7 @@ fn make_cube_object(
     shininess: f32,
 ) DrawObject {
     return .{
+        .static_mesh = .cube,
         .model = model,
         .material = lit_material(base_color, specular_strength, shininess),
     };
@@ -52,6 +60,7 @@ fn make_cube_object(
 
 fn make_ground_object(model: math.Mat4) DrawObject {
     return .{
+        .static_mesh = .plane,
         .model = model,
         .material = lit_material(
             main_scene_config.ground_material.color,
@@ -63,6 +72,7 @@ fn make_ground_object(model: math.Mat4) DrawObject {
 
 fn make_light_indicator(model: math.Mat4, color: math.Vec3) DrawObject {
     return .{
+        .static_mesh = .cube,
         .model = model,
         .material = unlit_material(color),
     };
