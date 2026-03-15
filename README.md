@@ -20,8 +20,6 @@ The majority of this document is the **development roadmap**, listing the compon
 
 # Roadmap
 
-Current Development Step is: Lighting & Shading -> First Material system, and then Shader organization.
-
 ## Core Platform
 
 * [x] SDL3 window creation
@@ -84,7 +82,7 @@ Current Development Step is: Lighting & Shading -> First Material system, and th
 * [x] Specular lighting
 * [ ] Physically based shading (PBR)
 * [x] Material system
-* [ ] Shader organization
+* [x] Shader organization
 
 ---
 

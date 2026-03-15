@@ -6,6 +6,7 @@ const mesh_data = @import("../mesh.zig");
 const material_file = @import("../material.zig");
 const render_scene = @import("../render_scene.zig");
 const render_camera = @import("../render_camera.zig");
+const scene_shader = @import("shaders/scene_shader.zig");
 
 pub const Material = material_file.Material;
 pub const DrawObject = render_scene.DrawObject;
@@ -30,15 +31,7 @@ const Mesh = struct {
     index_count: u32 = 0,
 };
 
-const PushConstants = extern struct {
-    view_proj: [16]f32,
-    model: [16]f32,
-    camera_pos: [4]f32,
-    base_color: [4]f32,
-    material_params: [4]f32,
-    light_pos: [4]f32,
-    light_color: [4]f32,
-};
+const PushConstants = scene_shader.PushConstants;
 
 const triangle_vert_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.vert.spv").*;
 const triangle_frag_spv align(@alignOf(u32)) = @embedFile("shaders/triangle.frag.spv").*;
@@ -941,8 +934,8 @@ pub const Renderer = struct {
             if (frag_module != null) vk.vkDestroyShaderModule(self.device, frag_module, null);
         }
 
-        vert_module = try self.create_shader_module(&triangle_vert_spv);
-        frag_module = try self.create_shader_module(&triangle_frag_spv);
+        vert_module = try self.create_shader_module(&scene_shader.vert_spv);
+        frag_module = try self.create_shader_module(&scene_shader.frag_spv);
 
         var push_constant_range = std.mem.zeroes(vk.VkPushConstantRange);
         push_constant_range.stageFlags = vk.VK_SHADER_STAGE_VERTEX_BIT | vk.VK_SHADER_STAGE_FRAGMENT_BIT;

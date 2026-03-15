@@ -38,7 +38,6 @@ void main() {
 
     float attenuation = 1.0 / (1.0 + 0.09 * light_distance + 0.032 * light_distance * light_distance);
 
-    // Hemisphere ambient
     vec3 sky_color = vec3(0.35, 0.40, 0.50);
     vec3 ground_color = vec3(0.18, 0.16, 0.14);
     float hemi_factor = normal.y * 0.5 + 0.5;

@@ -1,13 +1,12 @@
 const math = @import("../core/math.zig");
 const scene_config = @import("scene_config.zig");
-const render_scene = @import("../render/render_scene.zig");
+const scene_types = @import("scene_types.zig");
 const material_file = @import("../render/material.zig");
-const mesh = @import("../render/mesh.zig");
 
-const DrawObject = render_scene.DrawObject;
+const SceneObject = scene_types.SceneObject;
+const SceneLight = scene_types.SceneLight;
+const SceneData = scene_types.SceneData;
 const Material = material_file.Material;
-const Light = render_scene.Light;
-const StaticMesh = mesh.StaticMesh;
 
 const main_scene_config = scene_config.make_main_scene_config();
 
@@ -23,11 +22,19 @@ const MainMaterialIndex = enum(usize) {
 };
 
 pub const SceneBuildResult = struct {
-    light: Light,
-    objects: [max_scene_objects]DrawObject,
+    light: SceneLight,
+    objects: [max_scene_objects]SceneObject,
     object_count: usize,
     materials: [max_scene_materials]Material,
     material_count: usize,
+
+    pub fn scene_data(self: *const SceneBuildResult) SceneData {
+        return .{
+            .objects = self.objects[0..self.object_count],
+            .materials = self.materials[0..self.material_count],
+            .light = self.light,
+        };
+    }
 };
 
 fn lit_material(
@@ -56,28 +63,13 @@ fn unlit_material(color: math.Vec3) Material {
     };
 }
 
-fn make_cube_object(
+fn make_scene_object(
+    static_mesh: scene_types.StaticMesh,
     model: math.Mat4,
     material_index: usize,
-) DrawObject {
+) SceneObject {
     return .{
-        .static_mesh = .cube,
-        .model = model,
-        .material_index = material_index,
-    };
-}
-
-fn make_ground_object(model: math.Mat4, material_index: usize) DrawObject {
-    return .{
-        .static_mesh = .plane,
-        .model = model,
-        .material_index = material_index,
-    };
-}
-
-fn make_light_indicator(model: math.Mat4, material_index: usize) DrawObject {
-    return .{
-        .static_mesh = .cube,
+        .static_mesh = static_mesh,
         .model = model,
         .material_index = material_index,
     };
@@ -167,7 +159,7 @@ fn make_light_indicator_model(light_position: math.Vec3) math.Mat4 {
     return math.Mat4.mul(light_translation, light_scale_matrix);
 }
 
-fn make_main_light(time: f32) Light {
+fn make_main_light(time: f32) SceneLight {
     return .{
         .position = make_light_position(time),
         .color = main_scene_config.light.color,
@@ -179,37 +171,42 @@ fn make_main_scene_objects(
     ground_model: math.Mat4,
     light_model: math.Mat4,
 ) struct {
-    objects: [max_scene_objects]DrawObject,
+    objects: [max_scene_objects]SceneObject,
     object_count: usize,
 } {
-    var objects: [max_scene_objects]DrawObject = undefined;
+    var objects: [max_scene_objects]SceneObject = undefined;
     var object_count: usize = 0;
 
-    objects[object_count] = make_light_indicator(
+    objects[object_count] = make_scene_object(
+        .cube,
         light_model,
         @intFromEnum(MainMaterialIndex.light_indicator),
     );
     object_count += 1;
 
-    objects[object_count] = make_cube_object(
+    objects[object_count] = make_scene_object(
+        .cube,
         cube_models.left,
         @intFromEnum(MainMaterialIndex.left_cube),
     );
     object_count += 1;
 
-    objects[object_count] = make_cube_object(
+    objects[object_count] = make_scene_object(
+        .cube,
         cube_models.center,
         @intFromEnum(MainMaterialIndex.center_cube),
     );
     object_count += 1;
 
-    objects[object_count] = make_cube_object(
+    objects[object_count] = make_scene_object(
+        .cube,
         cube_models.right,
         @intFromEnum(MainMaterialIndex.right_cube),
     );
     object_count += 1;
 
-    objects[object_count] = make_ground_object(
+    objects[object_count] = make_scene_object(
+        .plane,
         ground_model,
         @intFromEnum(MainMaterialIndex.ground),
     );
