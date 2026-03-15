@@ -1,19 +1,13 @@
 const math = @import("../core/math.zig");
 const mesh = @import("mesh.zig");
+const material_file = @import("material.zig");
 
-pub const Material = struct {
-    base_color: math.Vec3,
-    specular_strength: f32,
-    shininess: f32,
-    emissive_color: math.Vec3,
-    emissive_strength: f32,
-    unlit: f32,
-};
+pub const Material = material_file.Material;
 
 pub const DrawObject = struct {
     static_mesh: mesh.StaticMesh,
     model: math.Mat4,
-    material: Material,
+    material_index: usize,
 };
 
 pub const Light = struct {
@@ -23,5 +17,6 @@ pub const Light = struct {
 
 pub const RenderScene = struct {
     objects: []const DrawObject,
+    materials: []const Material,
     light: Light,
 };

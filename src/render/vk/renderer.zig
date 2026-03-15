@@ -3,10 +3,11 @@ const sdl = @import("../../platform/sdl.zig");
 const vk = sdl.c;
 const math = @import("../../core/math.zig");
 const mesh_data = @import("../mesh.zig");
+const material_file = @import("../material.zig");
 const render_scene = @import("../render_scene.zig");
 const render_camera = @import("../render_camera.zig");
 
-pub const Material = render_scene.Material;
+pub const Material = material_file.Material;
 pub const DrawObject = render_scene.DrawObject;
 pub const Light = render_scene.Light;
 pub const RenderScene = render_scene.RenderScene;
@@ -1262,6 +1263,7 @@ pub const Renderer = struct {
 
         for (frame.scene.objects) |object| {
             const mesh = self.get_mesh(object.static_mesh);
+            const material = frame.scene.materials[object.material_index];
 
             const vertex_buffers = [_]vk.VkBuffer{mesh.vertex_buffer};
             const offsets = [_]vk.VkDeviceSize{0};
@@ -1293,15 +1295,15 @@ pub const Renderer = struct {
                     0.0,
                 },
                 .base_color = .{
-                    object.material.base_color.x,
-                    object.material.base_color.y,
-                    object.material.base_color.z,
+                    material.base_color.x,
+                    material.base_color.y,
+                    material.base_color.z,
                     0.0,
                 },
                 .material_params = .{
-                    object.material.specular_strength,
-                    object.material.shininess,
-                    object.material.unlit,
+                    material.specular_strength,
+                    material.shininess,
+                    material.unlit,
                     0.0,
                 },
                 .light_pos = .{

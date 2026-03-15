@@ -1,22 +1,33 @@
 const math = @import("../core/math.zig");
 const scene_config = @import("scene_config.zig");
 const render_scene = @import("../render/render_scene.zig");
+const material_file = @import("../render/material.zig");
 const mesh = @import("../render/mesh.zig");
 
 const DrawObject = render_scene.DrawObject;
-const Material = render_scene.Material;
+const Material = material_file.Material;
 const Light = render_scene.Light;
-const RenderScene = render_scene.RenderScene;
 const StaticMesh = mesh.StaticMesh;
 
 const main_scene_config = scene_config.make_main_scene_config();
 
 const max_scene_objects = 16;
+const max_scene_materials = 16;
+
+const MainMaterialIndex = enum(usize) {
+    light_indicator = 0,
+    left_cube = 1,
+    center_cube = 2,
+    right_cube = 3,
+    ground = 4,
+};
 
 pub const SceneBuildResult = struct {
     light: Light,
     objects: [max_scene_objects]DrawObject,
     object_count: usize,
+    materials: [max_scene_materials]Material,
+    material_count: usize,
 };
 
 fn lit_material(
@@ -47,34 +58,72 @@ fn unlit_material(color: math.Vec3) Material {
 
 fn make_cube_object(
     model: math.Mat4,
-    base_color: math.Vec3,
-    specular_strength: f32,
-    shininess: f32,
+    material_index: usize,
 ) DrawObject {
     return .{
         .static_mesh = .cube,
         .model = model,
-        .material = lit_material(base_color, specular_strength, shininess),
+        .material_index = material_index,
     };
 }
 
-fn make_ground_object(model: math.Mat4) DrawObject {
+fn make_ground_object(model: math.Mat4, material_index: usize) DrawObject {
     return .{
         .static_mesh = .plane,
         .model = model,
-        .material = lit_material(
-            main_scene_config.ground_material.color,
-            main_scene_config.ground_material.specular_strength,
-            main_scene_config.ground_material.shininess,
-        ),
+        .material_index = material_index,
     };
 }
 
-fn make_light_indicator(model: math.Mat4, color: math.Vec3) DrawObject {
+fn make_light_indicator(model: math.Mat4, material_index: usize) DrawObject {
     return .{
         .static_mesh = .cube,
         .model = model,
-        .material = unlit_material(color),
+        .material_index = material_index,
+    };
+}
+
+fn make_main_scene_materials(light_color: math.Vec3) struct {
+    materials: [max_scene_materials]Material,
+    material_count: usize,
+} {
+    var materials: [max_scene_materials]Material = undefined;
+    var material_count: usize = 0;
+
+    materials[material_count] = unlit_material(light_color);
+    material_count += 1;
+
+    materials[material_count] = lit_material(
+        main_scene_config.left_cube_material.color,
+        main_scene_config.left_cube_material.specular_strength,
+        main_scene_config.left_cube_material.shininess,
+    );
+    material_count += 1;
+
+    materials[material_count] = lit_material(
+        main_scene_config.center_cube_material.color,
+        main_scene_config.center_cube_material.specular_strength,
+        main_scene_config.center_cube_material.shininess,
+    );
+    material_count += 1;
+
+    materials[material_count] = lit_material(
+        main_scene_config.right_cube_material.color,
+        main_scene_config.right_cube_material.specular_strength,
+        main_scene_config.right_cube_material.shininess,
+    );
+    material_count += 1;
+
+    materials[material_count] = lit_material(
+        main_scene_config.ground_material.color,
+        main_scene_config.ground_material.specular_strength,
+        main_scene_config.ground_material.shininess,
+    );
+    material_count += 1;
+
+    return .{
+        .materials = materials,
+        .material_count = material_count,
     };
 }
 
@@ -126,7 +175,6 @@ fn make_main_light(time: f32) Light {
 }
 
 fn make_main_scene_objects(
-    light: Light,
     cube_models: CubeModels,
     ground_model: math.Mat4,
     light_model: math.Mat4,
@@ -137,34 +185,34 @@ fn make_main_scene_objects(
     var objects: [max_scene_objects]DrawObject = undefined;
     var object_count: usize = 0;
 
-    objects[object_count] = make_light_indicator(light_model, light.color);
+    objects[object_count] = make_light_indicator(
+        light_model,
+        @intFromEnum(MainMaterialIndex.light_indicator),
+    );
     object_count += 1;
 
     objects[object_count] = make_cube_object(
         cube_models.left,
-        main_scene_config.left_cube_material.color,
-        main_scene_config.left_cube_material.specular_strength,
-        main_scene_config.left_cube_material.shininess,
+        @intFromEnum(MainMaterialIndex.left_cube),
     );
     object_count += 1;
 
     objects[object_count] = make_cube_object(
         cube_models.center,
-        main_scene_config.center_cube_material.color,
-        main_scene_config.center_cube_material.specular_strength,
-        main_scene_config.center_cube_material.shininess,
+        @intFromEnum(MainMaterialIndex.center_cube),
     );
     object_count += 1;
 
     objects[object_count] = make_cube_object(
         cube_models.right,
-        main_scene_config.right_cube_material.color,
-        main_scene_config.right_cube_material.specular_strength,
-        main_scene_config.right_cube_material.shininess,
+        @intFromEnum(MainMaterialIndex.right_cube),
     );
     object_count += 1;
 
-    objects[object_count] = make_ground_object(ground_model);
+    objects[object_count] = make_ground_object(
+        ground_model,
+        @intFromEnum(MainMaterialIndex.ground),
+    );
     object_count += 1;
 
     return .{
@@ -175,18 +223,24 @@ fn make_main_scene_objects(
 
 fn make_main_scene(time: f32) SceneBuildResult {
     const cube_models = make_cube_models(time);
-
     const ground_model = make_ground_model();
 
     const light = make_main_light(time);
     const light_model = make_light_indicator_model(light.position);
 
-    const scene_objects = make_main_scene_objects(light, cube_models, ground_model, light_model);
+    const scene_materials = make_main_scene_materials(light.color);
+    const scene_objects = make_main_scene_objects(
+        cube_models,
+        ground_model,
+        light_model,
+    );
 
     return .{
         .light = light,
         .objects = scene_objects.objects,
         .object_count = scene_objects.object_count,
+        .materials = scene_materials.materials,
+        .material_count = scene_materials.material_count,
     };
 }
 

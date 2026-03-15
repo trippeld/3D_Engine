@@ -87,6 +87,7 @@ pub fn run() !void {
         const scene = RenderScene{
             .light = built_scene.light,
             .objects = built_scene.objects[0..built_scene.object_count],
+            .materials = built_scene.materials[0..built_scene.material_count],
         };
 
         try renderer.draw_frame(.{

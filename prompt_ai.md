@@ -55,4 +55,4 @@ Future systems I expect to implement is in the roadmap in the README.md.
 But implement things in the correct order.
 
 First step:
-Analyze the project and tell me what the next engine milestone should be. Then after that: Give me the code and remember always to tell me where and what in the code. And always tell me when we finished another milestone in the roadmap.
+Analyze the project and tell me what the next engine milestone should be. Then after that: Give me the code and remember always to tell me where and what in the code. And always tell me when we finished another milestone in the roadmap. And only use the files provided in this chat. Do not show me edits using files from my github repo online, its not up to date on the master branch.

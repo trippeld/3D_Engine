@@ -83,7 +83,7 @@ Current Development Step is: Lighting & Shading -> First Material system, and th
 * [x] Directional light (Lambert)
 * [x] Specular lighting
 * [ ] Physically based shading (PBR)
-* [ ] Material system
+* [x] Material system
 * [ ] Shader organization
 
 ---
