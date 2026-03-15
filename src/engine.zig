@@ -27,7 +27,8 @@ pub fn run() !void {
     var renderer = try Renderer.init(allocator, window);
     defer renderer.deinit();
 
-    var camera = Camera{};
+    var camera = Camera.init(math.Vec3.init(0.0, 2.0, 6.0));
+    var input_state = platform.read_input_state();
     const target_pos = math.Vec3.init(0.0, 0.0, 0.0);
 
     var running = true;
@@ -37,6 +38,8 @@ pub fn run() !void {
     var total_time: f32 = 0.0;
 
     while (running) {
+        input_state.reset_frame_deltas();
+
         while (platform.poll_event()) |event| {
             switch (event) {
                 .quit => running = false,
@@ -44,18 +47,26 @@ pub fn run() !void {
                     .escape => running = false,
                 },
                 .mouse_motion => |motion| {
-                    camera.process_mouse(motion.dx, motion.dy);
+                    input_state.mouse_delta_x += motion.dx;
+                    input_state.mouse_delta_y += motion.dy;
                 },
                 .none => {},
             }
         }
 
-        const input = platform.read_input_state();
+        const keyboard_state = platform.read_input_state();
+        input_state.move_forward = keyboard_state.move_forward;
+        input_state.move_backward = keyboard_state.move_backward;
+        input_state.move_left = keyboard_state.move_left;
+        input_state.move_right = keyboard_state.move_right;
+        input_state.move_up = keyboard_state.move_up;
+        input_state.move_down = keyboard_state.move_down;
+
         const dt = timer.tick();
         total_time += dt;
         print_accum += dt;
 
-        camera.update(input, dt);
+        camera.update(input_state, dt);
         const aspect = @as(f32, @floatFromInt(renderer.swapchain_extent.width)) /
             @as(f32, @floatFromInt(renderer.swapchain_extent.height));
 

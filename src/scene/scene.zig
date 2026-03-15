@@ -2,18 +2,30 @@ const math = @import("../core/math.zig");
 const scene_config = @import("scene_config.zig");
 const scene_types = @import("scene_types.zig");
 const material_file = @import("../render/material.zig");
+const transform_file = @import("transform.zig");
 
 const SceneObject = scene_types.SceneObject;
+const StaticMeshComponent = scene_types.StaticMeshComponent;
 const SceneLight = scene_types.SceneLight;
 const SceneData = scene_types.SceneData;
 const Material = material_file.Material;
+const Transform = transform_file.Transform;
 
 const main_scene_config = scene_config.make_main_scene_config();
 
 const max_scene_objects = 16;
+const max_scene_static_meshes = 16;
 const max_scene_materials = 16;
 
 const MainMaterialIndex = enum(usize) {
+    light_indicator = 0,
+    left_cube = 1,
+    center_cube = 2,
+    right_cube = 3,
+    ground = 4,
+};
+
+const MainObjectIndex = enum(usize) {
     light_indicator = 0,
     left_cube = 1,
     center_cube = 2,
@@ -25,12 +37,15 @@ pub const SceneBuildResult = struct {
     light: SceneLight,
     objects: [max_scene_objects]SceneObject,
     object_count: usize,
+    static_meshes: [max_scene_static_meshes]StaticMeshComponent,
+    static_mesh_count: usize,
     materials: [max_scene_materials]Material,
     material_count: usize,
 
     pub fn scene_data(self: *const SceneBuildResult) SceneData {
         return .{
             .objects = self.objects[0..self.object_count],
+            .static_meshes = self.static_meshes[0..self.static_mesh_count],
             .materials = self.materials[0..self.material_count],
             .light = self.light,
         };
@@ -64,13 +79,23 @@ fn unlit_material(color: math.Vec3) Material {
 }
 
 fn make_scene_object(
-    static_mesh: scene_types.StaticMesh,
-    model: math.Mat4,
-    material_index: usize,
+    parent_index: ?usize,
+    local_transform: Transform,
 ) SceneObject {
     return .{
+        .parent_index = parent_index,
+        .local_transform = local_transform,
+    };
+}
+
+fn make_static_mesh_component(
+    object_index: usize,
+    static_mesh: scene_types.StaticMesh,
+    material_index: usize,
+) StaticMeshComponent {
+    return .{
+        .object_index = object_index,
         .static_mesh = static_mesh,
-        .model = model,
         .material_index = material_index,
     };
 }
@@ -127,36 +152,46 @@ fn make_light_position(time: f32) math.Vec3 {
     );
 }
 
-const CubeModels = struct {
-    left: math.Mat4,
-    center: math.Mat4,
-    right: math.Mat4,
+const CubeTransforms = struct {
+    left: Transform,
+    center: Transform,
+    right: Transform,
 };
 
-fn make_cube_models(time: f32) CubeModels {
-    const left_translation = math.Mat4.translate(main_scene_config.cube_positions.left);
-    const center_translation = math.Mat4.translate(main_scene_config.cube_positions.center);
-    const right_translation = math.Mat4.translate(main_scene_config.cube_positions.right);
-
-    const rotation = math.Mat4.rotate_y(time);
-
+fn make_cube_transforms(time: f32) CubeTransforms {
     return .{
-        .left = math.Mat4.mul(left_translation, rotation),
-        .center = math.Mat4.mul(center_translation, rotation),
-        .right = math.Mat4.mul(right_translation, rotation),
+        .left = .{
+            .position = main_scene_config.cube_positions.left,
+            .rotation_y = time,
+            .scale = math.Vec3.init(1.0, 1.0, 1.0),
+        },
+        .center = .{
+            .position = main_scene_config.cube_positions.center,
+            .rotation_y = time,
+            .scale = math.Vec3.init(1.0, 1.0, 1.0),
+        },
+        .right = .{
+            .position = main_scene_config.cube_positions.right,
+            .rotation_y = time,
+            .scale = math.Vec3.init(1.0, 1.0, 1.0),
+        },
     };
 }
 
-fn make_ground_model() math.Mat4 {
-    const ground_translation = math.Mat4.translate(main_scene_config.ground.position);
-    const ground_scale_matrix = math.Mat4.scale(main_scene_config.ground.scale);
-    return math.Mat4.mul(ground_translation, ground_scale_matrix);
+fn make_ground_transform() Transform {
+    return .{
+        .position = main_scene_config.ground.position,
+        .rotation_y = 0.0,
+        .scale = main_scene_config.ground.scale,
+    };
 }
 
-fn make_light_indicator_model(light_position: math.Vec3) math.Mat4 {
-    const light_translation = math.Mat4.translate(light_position);
-    const light_scale_matrix = math.Mat4.scale(main_scene_config.light.indicator_scale);
-    return math.Mat4.mul(light_translation, light_scale_matrix);
+fn make_light_indicator_transform(light_position: math.Vec3) Transform {
+    return .{
+        .position = light_position,
+        .rotation_y = 0.0,
+        .scale = main_scene_config.light.indicator_scale,
+    };
 }
 
 fn make_main_light(time: f32) SceneLight {
@@ -167,9 +202,9 @@ fn make_main_light(time: f32) SceneLight {
 }
 
 fn make_main_scene_objects(
-    cube_models: CubeModels,
-    ground_model: math.Mat4,
-    light_model: math.Mat4,
+    cube_transforms: CubeTransforms,
+    ground_transform: Transform,
+    light_transform: Transform,
 ) struct {
     objects: [max_scene_objects]SceneObject,
     object_count: usize,
@@ -177,39 +212,19 @@ fn make_main_scene_objects(
     var objects: [max_scene_objects]SceneObject = undefined;
     var object_count: usize = 0;
 
-    objects[object_count] = make_scene_object(
-        .cube,
-        light_model,
-        @intFromEnum(MainMaterialIndex.light_indicator),
-    );
+    objects[object_count] = make_scene_object(null, light_transform);
     object_count += 1;
 
-    objects[object_count] = make_scene_object(
-        .cube,
-        cube_models.left,
-        @intFromEnum(MainMaterialIndex.left_cube),
-    );
+    objects[object_count] = make_scene_object(null, cube_transforms.left);
     object_count += 1;
 
-    objects[object_count] = make_scene_object(
-        .cube,
-        cube_models.center,
-        @intFromEnum(MainMaterialIndex.center_cube),
-    );
+    objects[object_count] = make_scene_object(null, cube_transforms.center);
     object_count += 1;
 
-    objects[object_count] = make_scene_object(
-        .cube,
-        cube_models.right,
-        @intFromEnum(MainMaterialIndex.right_cube),
-    );
+    objects[object_count] = make_scene_object(null, cube_transforms.right);
     object_count += 1;
 
-    objects[object_count] = make_scene_object(
-        .plane,
-        ground_model,
-        @intFromEnum(MainMaterialIndex.ground),
-    );
+    objects[object_count] = make_scene_object(null, ground_transform);
     object_count += 1;
 
     return .{
@@ -218,24 +233,75 @@ fn make_main_scene_objects(
     };
 }
 
+fn make_main_scene_static_meshes() struct {
+    static_meshes: [max_scene_static_meshes]StaticMeshComponent,
+    static_mesh_count: usize,
+} {
+    var static_meshes: [max_scene_static_meshes]StaticMeshComponent = undefined;
+    var static_mesh_count: usize = 0;
+
+    static_meshes[static_mesh_count] = make_static_mesh_component(
+        @intFromEnum(MainObjectIndex.light_indicator),
+        .cube,
+        @intFromEnum(MainMaterialIndex.light_indicator),
+    );
+    static_mesh_count += 1;
+
+    static_meshes[static_mesh_count] = make_static_mesh_component(
+        @intFromEnum(MainObjectIndex.left_cube),
+        .cube,
+        @intFromEnum(MainMaterialIndex.left_cube),
+    );
+    static_mesh_count += 1;
+
+    static_meshes[static_mesh_count] = make_static_mesh_component(
+        @intFromEnum(MainObjectIndex.center_cube),
+        .cube,
+        @intFromEnum(MainMaterialIndex.center_cube),
+    );
+    static_mesh_count += 1;
+
+    static_meshes[static_mesh_count] = make_static_mesh_component(
+        @intFromEnum(MainObjectIndex.right_cube),
+        .cube,
+        @intFromEnum(MainMaterialIndex.right_cube),
+    );
+    static_mesh_count += 1;
+
+    static_meshes[static_mesh_count] = make_static_mesh_component(
+        @intFromEnum(MainObjectIndex.ground),
+        .plane,
+        @intFromEnum(MainMaterialIndex.ground),
+    );
+    static_mesh_count += 1;
+
+    return .{
+        .static_meshes = static_meshes,
+        .static_mesh_count = static_mesh_count,
+    };
+}
+
 fn make_main_scene(time: f32) SceneBuildResult {
-    const cube_models = make_cube_models(time);
-    const ground_model = make_ground_model();
+    const cube_transforms = make_cube_transforms(time);
+    const ground_transform = make_ground_transform();
 
     const light = make_main_light(time);
-    const light_model = make_light_indicator_model(light.position);
+    const light_transform = make_light_indicator_transform(light.position);
 
     const scene_materials = make_main_scene_materials(light.color);
     const scene_objects = make_main_scene_objects(
-        cube_models,
-        ground_model,
-        light_model,
+        cube_transforms,
+        ground_transform,
+        light_transform,
     );
+    const scene_static_meshes = make_main_scene_static_meshes();
 
     return .{
         .light = light,
         .objects = scene_objects.objects,
         .object_count = scene_objects.object_count,
+        .static_meshes = scene_static_meshes.static_meshes,
+        .static_mesh_count = scene_static_meshes.static_mesh_count,
         .materials = scene_materials.materials,
         .material_count = scene_materials.material_count,
     };

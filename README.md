@@ -101,9 +101,9 @@ The majority of this document is the **development roadmap**, listing the compon
 # Scene System
 
 * [x] Scene object representation
-* [ ] Transform hierarchy
-* [ ] Scene submission to renderer
-* [ ] Static mesh components
+* [x] Transform hierarchy
+* [x] Scene submission to renderer
+* [x] Static mesh components
 * [ ] Scene update pipeline
 
 ---
