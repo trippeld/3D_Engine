@@ -6,6 +6,7 @@ const render_scene = @import("render/render_scene.zig");
 const render_camera = @import("render/render_camera.zig");
 const scene_builder = @import("scene/scene.zig");
 const scene_submission = @import("scene/scene_submission.zig");
+const gltf_loader = @import("assets/gltf_loader.zig");
 
 const Camera = @import("scene/camera.zig").Camera;
 const Renderer = render_vk.Renderer;
@@ -23,6 +24,22 @@ pub fn run() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    blk: {
+        var loaded_mesh = gltf_loader.load_first_mesh(
+            allocator,
+            "assets/models/test/test.gltf",
+        ) catch |err| {
+            std.log.warn("gltf load test failed: {}", .{err});
+            break :blk;
+        };
+        defer loaded_mesh.deinit(allocator);
+
+        std.log.info(
+            "gltf load test ok: vertices={}, indices={}",
+            .{ loaded_mesh.vertices.len, loaded_mesh.indices.len },
+        );
+    }
 
     var renderer = try Renderer.init(allocator, window);
     defer renderer.deinit();
